@@ -1,0 +1,41 @@
+[package]
+name = "vibraudio"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+authors.workspace = true
+description.workspace = true
+repository.workspace = true
+readme.workspace = true
+
+[[example]]
+name = "play"
+path = "examples/play.rs"
+
+[features]
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+# -- App Libs
+vibraudio-core = { path = "../../libs/vibraudio-core" }
+vibraudio-mp3 = { path = "../../libs/vibraudio-mp3" }
+vibraudio-alsa = { path = "../../libs/vibraudio-alsa" }
+
+# -- Tracing
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+# -- Others
+derive_more = { workspace = true }
+bytes = { workspace = true }
+tokio = { version = "1.52.3", features = ["full"] }
+
+[dev-dependencies]
+anyhow = { workspace = true }
+
+[build-dependencies]
+cc = "1.2"

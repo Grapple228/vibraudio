@@ -1,0 +1,34 @@
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = ""
+authors = ["grapple228 <greenapple228882@yandex.ru>"]
+readme = "readme.md"
+repository = "https://github.com/grapple228/vibraudio.git"
+
+[workspace.lints.rust]
+# unsafe_code = "forbid"
+unused = { level = "allow", priority = -1 } # For exploratory dev.
+
+[workspace]
+resolver = "2"
+members = [
+    # -- Application Libraries
+    "crates/libs/vibraudio",
+    "crates/libs/vibraudio-core",
+    "crates/libs/vibraudio-alsa",
+    "crates/libs/vibraudio-mp3",
+]
+
+[workspace.dependencies]
+# Tracing
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+#Other
+derive_more = {version = "1", features = ["from"] }
+
+bytes = "1.12.1"
+
+# Dev
+anyhow = "1"

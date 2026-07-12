@@ -1,0 +1,36 @@
+[package]
+name = "vibraudio-alsa"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+authors.workspace = true
+description.workspace = true
+repository.workspace = true
+readme.workspace = true
+
+[features]
+[[bench]]
+name = "playback"
+harness = false
+path = "benches/playback.rs"
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+# -- App Libs
+vibraudio-core = { path = "../../libs/vibraudio-core" }
+# -- Tracing
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+# -- Others
+derive_more = { workspace = true }
+
+[dev-dependencies]
+anyhow = { workspace = true }
+
+[build-dependencies]
+cc = "1.2"
