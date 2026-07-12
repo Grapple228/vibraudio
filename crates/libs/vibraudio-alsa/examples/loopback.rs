@@ -1,17 +1,16 @@
 use vibraudio_alsa::AlsaBackend;
-use vibraudio_core::{AudioConfig, PcmDevice, SampleFormat, StreamDirection};
+use vibraudio_core::{AudioConfig, Backend, PcmDevice, SampleFormat, StreamDirection};
 
 fn main() {
     // Open the default ALSA device for capture (microphone)
-    let capture = PcmDevice::<AlsaBackend>::open("default", StreamDirection::Capture)
+    let capture = AlsaBackend::<i16>::open("default", StreamDirection::Capture)
         .expect("Failed to open capture device");
-
     // Open the default ALSA device for playback (speakers)
-    let playback = PcmDevice::<AlsaBackend>::open("default", StreamDirection::Playback)
+    let playback = AlsaBackend::<i16>::open("default", StreamDirection::Playback)
         .expect("Failed to open playback device");
 
     // Both devices share the same config: 48kHz, mono, signed 16-bit LE
-    let config = AudioConfig::new(48000, 1, SampleFormat::S16Le, 15_000);
+    let config = AudioConfig::new(48000, 1, 15_000);
     capture
         .configure(&config)
         .expect("Failed to configure capture");

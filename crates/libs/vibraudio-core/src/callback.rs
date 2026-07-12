@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use crate::Result;
 
 /// Трейт для обработки аудио данных
@@ -34,4 +36,11 @@ impl AudioCallback for SilenceCallback {
         }
         Ok(output.len())
     }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct OutputCallbackInfo {
+    pub timestamp: Instant,
+    pub frames_written: u64,
+    pub underrun_count: u64,
 }

@@ -8,8 +8,8 @@
 
 use std::time::Instant;
 
-use vibraudio::backend::DefaultBackend;
-use vibraudio_core::{AudioConfig, Error, PcmDevice, SampleFormat, StreamDirection};
+use vibraudio_alsa::AlsaBackend;
+use vibraudio_core::{AudioConfig, Backend, Error, PcmDevice, SampleFormat, StreamDirection};
 use vibraudio_mp3::{decoder::Mp3Decoder, ffi::MINIMP3_MAX_SAMPLES_PER_FRAME};
 
 fn main() {
@@ -26,7 +26,7 @@ fn main() {
     let mp3_data = std::fs::read(&args[1]).expect("Failed to read MP3 file");
 
     // Open the default ALSA playback device
-    let device = PcmDevice::<DefaultBackend>::open("default", StreamDirection::Playback)
+    let device = AlsaBackend::<i16>::open("default", StreamDirection::Playback)
         .expect("Failed to open audio device");
 
     let mut decoder = Mp3Decoder::new();
@@ -43,12 +43,7 @@ fn main() {
             Ok(result) => {
                 // Configure the device on the first successful decode
                 if !configured {
-                    let config = AudioConfig::new(
-                        result.sample_rate,
-                        result.channels,
-                        SampleFormat::S16Le,
-                        20_000,
-                    );
+                    let config = AudioConfig::new(result.sample_rate, result.channels, 20_000);
 
                     device
                         .configure(&config)

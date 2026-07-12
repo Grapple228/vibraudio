@@ -7,6 +7,13 @@ authors = ["grapple228 <greenapple228882@yandex.ru>"]
 readme = "readme.md"
 repository = "https://github.com/grapple228/vibraudio.git"
 
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+
 [workspace.lints.rust]
 # unsafe_code = "forbid"
 unused = { level = "allow", priority = -1 } # For exploratory dev.
@@ -17,6 +24,7 @@ members = [
     # -- Application Libraries
     "crates/libs/vibraudio",
     "crates/libs/vibraudio-core",
+    "crates/libs/vibraudio-ringbuffer",
     "crates/libs/vibraudio-alsa",
     "crates/libs/vibraudio-mp3",
 ]

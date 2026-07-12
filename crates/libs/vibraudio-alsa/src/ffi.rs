@@ -46,11 +46,15 @@ unsafe extern "C" {
         latency: c_uint,
     ) -> c_int;
 
+    pub fn snd_pcm_wait(pcm: *mut SndPcm, timeout: c_int) -> c_int;
+
     pub fn snd_pcm_writei(
         pcm: *mut SndPcm,
         buffer: *const c_void,
         size: SndPcmUframesT,
     ) -> SndPcmSframesT;
+
+    pub fn snd_pcm_reset(pcm: *mut SndPcm) -> c_int;
 
     pub fn snd_pcm_readi(
         pcm: *mut SndPcm,

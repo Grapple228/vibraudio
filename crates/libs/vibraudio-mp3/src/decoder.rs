@@ -24,11 +24,7 @@ impl Mp3Decoder {
         Mp3Decoder { dec }
     }
 
-    pub fn decode_frame(
-        &mut self,
-        input: &[u8],
-        pcm_buffer: &mut [i16; MINIMP3_MAX_SAMPLES_PER_FRAME],
-    ) -> Result<DecodeResult> {
+    pub fn decode_frame(&mut self, input: &[u8], pcm_buffer: &mut [i16]) -> Result<DecodeResult> {
         let mut info = unsafe { MaybeUninit::<Mp3FrameInfo>::zeroed().assume_init() };
 
         let samples = unsafe {
@@ -77,10 +73,7 @@ impl<R: Read> Mp3StreamDecoder<R> {
         }
     }
 
-    pub fn decode_next_frame(
-        &mut self,
-        pcm_buffer: &mut [i16; MINIMP3_MAX_SAMPLES_PER_FRAME],
-    ) -> Result<DecodeResult> {
+    pub fn decode_next_frame(&mut self, output: &mut [i16]) -> Result<DecodeResult> {
         loop {
             let available = self.buffer_len - self.pos;
 
@@ -122,7 +115,7 @@ impl<R: Read> Mp3StreamDecoder<R> {
 
             // trying to decode
             let input = &self.buffer[self.pos..self.buffer_len];
-            match self.decoder.decode_frame(input, pcm_buffer) {
+            match self.decoder.decode_frame(input, output) {
                 Ok(info) => {
                     self.pos += info.frame_bytes;
                     return Ok(info);

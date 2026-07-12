@@ -18,16 +18,14 @@ impl SampleFormat {
 pub struct AudioConfig {
     pub sample_rate: u32,
     pub channels: u16,
-    pub format: SampleFormat,
     pub latency: u32,
 }
 
 impl AudioConfig {
-    pub const fn new(sample_rate: u32, channels: u16, format: SampleFormat, latency: u32) -> Self {
+    pub const fn new(sample_rate: u32, channels: u16, latency: u32) -> Self {
         AudioConfig {
             sample_rate,
             channels,
-            format,
             latency,
         }
     }

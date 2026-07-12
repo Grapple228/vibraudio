@@ -1,4 +1,3 @@
-// ./crates/libs/vibraudio/examples/microphone_loopback_ring.rs
 //! Loopback с микрофона на колонки через кольцевой буфер
 
 use std::{
@@ -17,7 +16,7 @@ use vibraudio_ringbuffer::BufferWriter;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("🎤 Loopback: Микрофон → Кольцевой буфер → Колонки");
-    println!("==============================================================");
+    println!("=================================================");
 
     const BUFFER_SIZE: usize = 128;
 
@@ -41,27 +40,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // PRODUCER: читаем с микрофона
     let producer_handle = thread::spawn(move || {
+        let mut buffer = [0i16; BUFFER_SIZE];
+
         while running_clone.load(Ordering::SeqCst) {
-            while writer.available_space() < BUFFER_SIZE && running_clone.load(Ordering::SeqCst) {
-                thread::sleep(Duration::from_micros(100));
-            }
-
-            if !running_clone.load(Ordering::SeqCst) {
-                break;
-            }
-
-            if let Some(slice) = writer.reserve(BUFFER_SIZE) {
-                match capture.read_frames(slice, config.channels) {
-                    Ok(frames_read) => {
-                        if frames_read > 0 {
-                            let samples = frames_read * config.channels as usize;
-                            writer.commit(samples);
-                        }
+            match capture.read_frames(&mut buffer, config.channels) {
+                Ok(frames_read) => {
+                    if frames_read > 0 {
+                        let samples = frames_read * config.channels as usize;
+                        writer.write(&buffer[..samples]);
                     }
-                    Err(e) => {
-                        eprintln!("Capture error: {}", e);
-                        break;
-                    }
+                }
+                Err(e) => {
+                    eprintln!("Capture error: {}", e);
+                    break;
                 }
             }
         }

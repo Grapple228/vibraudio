@@ -1,19 +1,33 @@
-use vibraudio_core::{AudioConfig, Backend, Error, Result, StreamDirection};
+use vibraudio_core::{
+    sample::Sample, AudioConfig, Backend, Error, PcmDevice, Result, StreamDirection,
+};
 
 use crate::{
     error::FromAlsa,
     ffi::{self, SndPcmFormatT},
 };
-use std::ffi::CString;
+use std::{ffi::CString, marker::PhantomData};
 
-unsafe impl Send for AlsaBackend {}
+unsafe impl<S: Sample> Send for AlsaBackend<S> {}
+unsafe impl<S: Sample> Sync for AlsaBackend<S> {}
 
-pub struct AlsaBackend {
+pub struct AlsaBackend<S: Sample> {
     handle: *mut ffi::SndPcm,
     c_name: CString,
+    _phantom: PhantomData<S>,
 }
 
-impl Backend for AlsaBackend {
+impl<S: Sample> AlsaBackend<S> {
+    fn sample_format() -> ffi::SndPcmFormatT {
+        if std::mem::size_of::<S>() == 4 {
+            ffi::SndPcmFormatT::FloatLe
+        } else {
+            ffi::SndPcmFormatT::S16Le
+        }
+    }
+}
+
+impl<S: Sample> Backend<S> for AlsaBackend<S> {
     fn open(name: &str, direction: StreamDirection) -> Result<Self> {
         let c_name = CString::new(name).map_err(|_| Error::DeviceNotFound)?;
         let mut handle: *mut ffi::SndPcm = std::ptr::null_mut();
@@ -31,14 +45,18 @@ impl Backend for AlsaBackend {
             return Err(Error::from_alsa(err));
         }
 
-        Ok(AlsaBackend { handle, c_name })
+        Ok(AlsaBackend {
+            handle,
+            c_name,
+            _phantom: PhantomData,
+        })
     }
 
     fn configure(&self, config: &AudioConfig) -> Result<()> {
         let err = unsafe {
             crate::ffi::snd_pcm_set_params(
                 self.handle,
-                SndPcmFormatT::from_sample_format(config.format),
+                SndPcmFormatT::from_sample_format(S::sample_format()),
                 crate::ffi::SndPcmAccessT::RwInterleaved,
                 config.channels as u32,
                 config.sample_rate,
@@ -54,7 +72,7 @@ impl Backend for AlsaBackend {
         Ok(())
     }
 
-    fn write_frames(&self, buffer: &[i16], channels: u16) -> Result<usize> {
+    fn write_frames(&self, buffer: &[S], channels: u16) -> Result<usize> {
         let frames = buffer.len() / channels as usize;
         let mut written = 0;
 
@@ -87,7 +105,7 @@ impl Backend for AlsaBackend {
         Ok(written)
     }
 
-    fn read_frames(&self, buffer: &mut [i16], channels: u16) -> Result<usize> {
+    fn read_frames(&self, buffer: &mut [S], channels: u16) -> Result<usize> {
         let frames = buffer.len() / channels as usize;
         let result: crate::ffi::SndPcmSframesT = unsafe {
             crate::ffi::snd_pcm_readi(
@@ -107,14 +125,27 @@ impl Backend for AlsaBackend {
 
         Ok(result as usize)
     }
+
+    fn reset(&self) -> Result<()> {
+        let err = unsafe { ffi::snd_pcm_reset(self.handle) };
+        if err < 0 {
+            return Err(Error::from_alsa(err));
+        }
+        Ok(())
+    }
+
+    fn close(&self) -> Result<()> {
+        unsafe {
+            ffi::snd_pcm_drain(self.handle);
+            ffi::snd_pcm_close(self.handle);
+        }
+        Ok(())
+    }
 }
 
-impl Drop for AlsaBackend {
+impl<S: Sample> Drop for AlsaBackend<S> {
     fn drop(&mut self) {
-        unsafe {
-            crate::ffi::snd_pcm_drain(self.handle);
-            crate::ffi::snd_pcm_close(self.handle);
-        }
+        _ = self.close();
 
         tracing::debug!(
             "Device {} is dropped",

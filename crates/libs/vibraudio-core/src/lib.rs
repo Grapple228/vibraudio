@@ -1,10 +1,12 @@
 mod error;
 
 mod backend;
+
 pub mod callback;
 pub mod config;
 pub mod device;
 pub mod sample;
+pub mod stream;
 
 pub use backend::Backend;
 pub use config::AudioConfig;

@@ -432,6 +432,7 @@ dependencies = [
  "vibraudio-alsa",
  "vibraudio-core",
  "vibraudio-mp3",
+ "vibraudio-ringbuffer",
 ]
 
 [[package]]
@@ -458,6 +459,19 @@ dependencies = [
 
 [[package]]
 name = "vibraudio-mp3"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bytes",
+ "cc",
+ "derive_more",
+ "tracing",
+ "tracing-subscriber",
+ "vibraudio-core",
+]
+
+[[package]]
+name = "vibraudio-ringbuffer"
 version = "0.1.0"
 dependencies = [
  "anyhow",

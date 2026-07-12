@@ -1,5 +1,5 @@
 [package]
-name = "vibraudio"
+name = "vibraudio-ringbuffer"
 edition.workspace = true
 version.workspace = true
 license.workspace = true
@@ -8,11 +8,8 @@ description.workspace = true
 repository.workspace = true
 readme.workspace = true
 
-[[example]]
-name = "play"
-path = "examples/play.rs"
-
 [features]
+
 
 [lib]
 doctest = false
@@ -23,17 +20,12 @@ workspace = true
 [dependencies]
 # -- App Libs
 vibraudio-core = { path = "../../libs/vibraudio-core" }
-vibraudio-ringbuffer = { path = "../../libs/vibraudio-ringbuffer" }
-vibraudio-mp3 = { path = "../../libs/vibraudio-mp3" }
-vibraudio-alsa = { path = "../../libs/vibraudio-alsa" }
-
 # -- Tracing
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 # -- Others
 derive_more = { workspace = true }
 bytes = { workspace = true }
-tokio = { version = "1.52.3", features = ["full"] }
 
 [dev-dependencies]
 anyhow = { workspace = true }

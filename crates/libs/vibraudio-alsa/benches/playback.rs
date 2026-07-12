@@ -1,14 +1,14 @@
 use std::time::Instant;
 use vibraudio_alsa::AlsaBackend;
-use vibraudio_core::{AudioConfig, PcmDevice, SampleFormat, StreamDirection};
+use vibraudio_core::{AudioConfig, Backend, PcmDevice, SampleFormat, StreamDirection};
 
 fn main() {
     // Open the ALSA "null" device which discards all written audio
-    let device = PcmDevice::<AlsaBackend>::open("null", StreamDirection::Playback)
+    let device = AlsaBackend::<i16>::open("default", StreamDirection::Playback)
         .expect("Failed to open null device");
 
     // Configure for standard CD-quality stereo playback
-    let config = AudioConfig::new(44100, 2, SampleFormat::S16Le, 20_000);
+    let config = AudioConfig::new(44100, 2, 15_000);
     device
         .configure(&config)
         .expect("Failed to configure device");
