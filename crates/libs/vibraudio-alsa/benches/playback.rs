@@ -1,6 +1,6 @@
 use std::time::Instant;
 use vibraudio_alsa::AlsaBackend;
-use vibraudio_core::{AudioConfig, Backend, PcmDevice, SampleFormat, StreamDirection};
+use vibraudio_core::{AudioConfig, Backend, StreamDirection};
 
 fn main() {
     // Open the ALSA "null" device which discards all written audio

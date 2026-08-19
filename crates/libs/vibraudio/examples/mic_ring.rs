@@ -9,9 +9,11 @@ use std::{
     time::Duration,
 };
 
-use vibraudio::core::{AudioConfig, PcmDevice, StreamDirection};
-use vibraudio_alsa::AlsaBackend;
-use vibraudio_core::{stream::StreamConfig, Backend, Error};
+use vibraudio::{
+    core::{AudioConfig, StreamDirection},
+    platform::DefaultBackend,
+};
+use vibraudio_core::{stream::StreamConfig, Backend};
 use vibraudio_ringbuffer::BufferWriter;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -25,15 +27,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         channels: 1,
     };
 
-    let capture = AlsaBackend::<i16>::open("default", StreamDirection::Capture)?;
-    let playback = AlsaBackend::<i16>::open("default", StreamDirection::Playback)?;
+    let capture = DefaultBackend::<i16>::open("default", StreamDirection::Capture)?;
+    let playback = DefaultBackend::<i16>::open("default", StreamDirection::Playback)?;
 
     let audio_config = AudioConfig::new(config.sample_rate, config.channels, 5_000);
     capture.configure(&audio_config)?;
     playback.configure(&audio_config)?;
 
-    let mut writer = BufferWriter::<{ BUFFER_SIZE * 2 }, i16>::new();
-    let mut reader = writer.reader();
+    let writer = BufferWriter::<{ BUFFER_SIZE * 2 }, i16>::new();
+    let reader = writer.reader();
 
     let running = Arc::new(AtomicBool::new(true));
     let running_clone = running.clone();

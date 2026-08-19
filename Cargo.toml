@@ -16,7 +16,7 @@ strip = true
 
 [workspace.lints.rust]
 # unsafe_code = "forbid"
-unused = { level = "allow", priority = -1 } # For exploratory dev.
+# unused = { level = "allow", priority = -1 } # For exploratory dev.
 
 [workspace]
 resolver = "2"
@@ -26,6 +26,7 @@ members = [
     "crates/libs/vibraudio-core",
     "crates/libs/vibraudio-ringbuffer",
     "crates/libs/vibraudio-alsa",
+    "crates/libs/vibraudio-wasapi",
     "crates/libs/vibraudio-mp3",
 ]
 
@@ -35,8 +36,6 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 #Other
 derive_more = {version = "1", features = ["from"] }
-
-bytes = "1.12.1"
 
 # Dev
 anyhow = "1"

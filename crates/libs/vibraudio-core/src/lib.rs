@@ -5,6 +5,7 @@ mod backend;
 pub mod callback;
 pub mod config;
 pub mod device;
+pub mod format;
 pub mod sample;
 pub mod stream;
 
@@ -14,6 +15,7 @@ pub use config::SampleFormat;
 pub use device::PcmDevice;
 pub use device::StreamDirection;
 pub use error::{Error, Result};
+pub use format::{AudioFormatInfo, FormatSelection};
 
 pub fn init() -> Result<()> {
     // LOGGING INITIALIZATION

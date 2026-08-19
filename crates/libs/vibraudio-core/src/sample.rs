@@ -1,7 +1,9 @@
 use crate::SampleFormat;
 
 /// Трейт для аудио семплов
-pub trait Sample: Copy + Send + Sync + 'static + Default {
+pub trait Sample: Copy + Send + Sync + 'static {
+    const ZERO: Self;
+
     fn from_f32(value: f32) -> Self;
     fn to_f32(&self) -> f32;
     fn silence() -> Self;
@@ -17,6 +19,8 @@ pub trait Sample: Copy + Send + Sync + 'static + Default {
 }
 
 impl Sample for i16 {
+    const ZERO: Self = 0_i16;
+
     fn from_f32(value: f32) -> Self {
         (value.clamp(-1.0, 1.0) * 32767.0) as i16
     }
@@ -29,6 +33,8 @@ impl Sample for i16 {
 }
 
 impl Sample for f32 {
+    const ZERO: Self = 0.0_f32;
+
     fn from_f32(value: f32) -> Self {
         value.clamp(-1.0, 1.0)
     }

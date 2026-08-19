@@ -7,7 +7,7 @@ pub struct BufferReader<const N: usize, S: Sample> {
 }
 
 impl<const N: usize, S: Sample> BufferReader<N, S> {
-    pub fn read(&mut self, dst: &mut [S]) -> usize {
+    pub fn read(&self, dst: &mut [S]) -> usize {
         unsafe { self.inner.read_data(dst) }
     }
 

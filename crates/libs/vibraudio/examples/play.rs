@@ -6,14 +6,12 @@
 // - Period: A chunk of frames transferred to hardware at once (the ring buffer unit).
 // - Underrun (XRUN): When the application fails to provide data fast enough.
 
-use std::time::Instant;
-
-use vibraudio_alsa::AlsaBackend;
-use vibraudio_core::{AudioConfig, Backend, Error, PcmDevice, SampleFormat, StreamDirection};
+use vibraudio::platform::DefaultBackend;
+use vibraudio_core::{AudioConfig, Backend, Error, StreamDirection};
 use vibraudio_mp3::{decoder::Mp3Decoder, ffi::MINIMP3_MAX_SAMPLES_PER_FRAME};
 
 fn main() {
-    vibraudio_core::init();
+    _ = vibraudio_core::init();
 
     // Require the user to pass an MP3 file path as an argument
     let args: Vec<String> = std::env::args().collect();
@@ -26,7 +24,7 @@ fn main() {
     let mp3_data = std::fs::read(&args[1]).expect("Failed to read MP3 file");
 
     // Open the default ALSA playback device
-    let device = AlsaBackend::<i16>::open("default", StreamDirection::Playback)
+    let device = DefaultBackend::<i16>::open("default", StreamDirection::Playback)
         .expect("Failed to open audio device");
 
     let mut decoder = Mp3Decoder::new();

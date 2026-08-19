@@ -1,4 +1,4 @@
-use crate::ffi::{self, Mp3Dec, Mp3FrameInfo, MINIMP3_MAX_SAMPLES_PER_FRAME};
+use crate::ffi::{self, Mp3Dec, Mp3FrameInfo};
 use core::mem::MaybeUninit;
 use std::io::Read;
 use vibraudio_core::{Error, Result};

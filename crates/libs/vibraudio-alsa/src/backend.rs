@@ -1,5 +1,5 @@
 use vibraudio_core::{
-    sample::Sample, AudioConfig, Backend, Error, PcmDevice, Result, StreamDirection,
+    sample::Sample, AudioConfig, AudioFormatInfo, Backend, Error, Result, StreamDirection,
 };
 
 use crate::{
@@ -15,16 +15,6 @@ pub struct AlsaBackend<S: Sample> {
     handle: *mut ffi::SndPcm,
     c_name: CString,
     _phantom: PhantomData<S>,
-}
-
-impl<S: Sample> AlsaBackend<S> {
-    fn sample_format() -> ffi::SndPcmFormatT {
-        if std::mem::size_of::<S>() == 4 {
-            ffi::SndPcmFormatT::FloatLe
-        } else {
-            ffi::SndPcmFormatT::S16Le
-        }
-    }
 }
 
 impl<S: Sample> Backend<S> for AlsaBackend<S> {
@@ -50,6 +40,21 @@ impl<S: Sample> Backend<S> for AlsaBackend<S> {
             c_name,
             _phantom: PhantomData,
         })
+    }
+
+    fn supported_formats(&self) -> Result<Vec<AudioFormatInfo>> {
+        // ALSA поддерживает практически любые форматы
+        let formats = vec![
+            AudioFormatInfo::new(1, 44100, 16, 1),
+            AudioFormatInfo::new(2, 44100, 16, 1),
+            AudioFormatInfo::new(1, 48000, 16, 1),
+            AudioFormatInfo::new(2, 48000, 16, 1),
+            AudioFormatInfo::new(1, 44100, 24, 1),
+            AudioFormatInfo::new(2, 44100, 24, 1),
+            AudioFormatInfo::new(1, 48000, 24, 1),
+            AudioFormatInfo::new(2, 48000, 24, 1),
+        ];
+        Ok(formats)
     }
 
     fn configure(&self, config: &AudioConfig) -> Result<()> {

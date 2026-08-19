@@ -1,6 +1,6 @@
 //! Main Crate Error
 
-use std::ffi::{c_int, CStr};
+use std::ffi::c_int;
 
 use derive_more::derive::From;
 

@@ -1,5 +1,5 @@
 use vibraudio_alsa::AlsaBackend;
-use vibraudio_core::{AudioConfig, PcmDevice, SampleFormat, StreamDirection};
+use vibraudio_core::{AudioConfig, PcmDevice, StreamDirection};
 
 #[test]
 fn capture_null_device() {

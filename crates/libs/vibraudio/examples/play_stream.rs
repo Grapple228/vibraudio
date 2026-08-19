@@ -1,10 +1,10 @@
 // ./crates/libs/vibraudio/examples/play_stream.rs
 use std::{fs::File, io::BufReader, time::Instant};
 use vibraudio::{
-    core::{AudioConfig, PcmDevice, SampleFormat, StreamDirection},
+    core::{AudioConfig, StreamDirection},
     mp3::decoder::Mp3StreamDecoder,
+    platform::DefaultBackend,
 };
-use vibraudio_alsa::AlsaBackend;
 use vibraudio_core::{Backend, Error};
 use vibraudio_mp3::ffi::MINIMP3_MAX_SAMPLES_PER_FRAME;
 
@@ -19,7 +19,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let reader = BufReader::new(file);
     let mut decoder = Mp3StreamDecoder::new(reader);
 
-    let device = AlsaBackend::<i16>::open("default", StreamDirection::Playback)?;
+    let device = DefaultBackend::<i16>::open("default", StreamDirection::Playback)?;
 
     let mut pcm_buffer = [0i16; MINIMP3_MAX_SAMPLES_PER_FRAME];
     let mut configured = false;

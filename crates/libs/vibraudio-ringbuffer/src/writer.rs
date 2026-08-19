@@ -20,7 +20,7 @@ impl<const N: usize, S: Sample> BufferWriter<N, S> {
         }
     }
 
-    pub fn write(&mut self, src: &[S]) -> usize {
+    pub fn write(&self, src: &[S]) -> usize {
         unsafe { self.inner.write_data(src) }
     }
 

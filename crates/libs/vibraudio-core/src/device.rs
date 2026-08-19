@@ -1,10 +1,8 @@
-use std::ffi::{c_int, CStr, CString};
-use std::marker::PhantomData;
-use std::ptr;
-
 use crate::backend::Backend;
 use crate::sample::Sample;
-use crate::{AudioConfig, Error, Result};
+use crate::{AudioConfig, Result};
+use std::marker::PhantomData;
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Copy)]
 pub enum StreamDirection {
@@ -16,15 +14,16 @@ pub struct PcmDevice<B: Backend<S>, S>
 where
     S: Sample,
 {
-    backend: B,
+    backend: Arc<B>,
     _phantom: PhantomData<S>,
 }
 
+#[allow(unused)]
 impl<B: Backend<S>, S: Sample> PcmDevice<B, S> {
     pub fn open(device_name: &str, direction: StreamDirection) -> Result<Self> {
         let backend = B::open(device_name, direction)?;
         Ok(PcmDevice {
-            backend,
+            backend: Arc::new(backend),
             _phantom: PhantomData,
         })
     }
@@ -41,11 +40,11 @@ impl<B: Backend<S>, S: Sample> PcmDevice<B, S> {
         self.backend.read_frames(buffer, channels)
     }
 
-    fn reset(&self) -> Result<()> {
+    pub fn reset(&self) -> Result<()> {
         self.backend.reset()
     }
 
-    fn close(&self) -> Result<()> {
+    pub fn close(&self) -> Result<()> {
         self.backend.close()
     }
 }

@@ -21,19 +21,22 @@ doctest = false
 workspace = true
 
 [dependencies]
-# -- App Libs
+# -- Core
 vibraudio-core = { path = "../../libs/vibraudio-core" }
 vibraudio-ringbuffer = { path = "../../libs/vibraudio-ringbuffer" }
 vibraudio-mp3 = { path = "../../libs/vibraudio-mp3" }
-vibraudio-alsa = { path = "../../libs/vibraudio-alsa" }
 
 # -- Tracing
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 # -- Others
 derive_more = { workspace = true }
-bytes = { workspace = true }
-tokio = { version = "1.52.3", features = ["full"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+vibraudio-alsa = { path = "../../libs/vibraudio-alsa" }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+vibraudio-wasapi = { path = "../../libs/vibraudio-wasapi" }
 
 [dev-dependencies]
 anyhow = { workspace = true }

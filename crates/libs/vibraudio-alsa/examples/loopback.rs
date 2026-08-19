@@ -1,5 +1,5 @@
 use vibraudio_alsa::AlsaBackend;
-use vibraudio_core::{AudioConfig, Backend, PcmDevice, SampleFormat, StreamDirection};
+use vibraudio_core::{AudioConfig, Backend, StreamDirection};
 
 fn main() {
     // Open the default ALSA device for capture (microphone)

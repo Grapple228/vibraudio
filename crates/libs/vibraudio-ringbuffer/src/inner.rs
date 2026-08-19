@@ -17,7 +17,7 @@ unsafe impl<const N: usize, S: Sample> Sync for RingBufferInner<N, S> {}
 impl<const N: usize, S: Sample> RingBufferInner<N, S> {
     pub fn new() -> Self {
         Self {
-            data: UnsafeCell::new([S::default(); N]),
+            data: UnsafeCell::new([S::ZERO; N]),
             write_pos: AtomicUsize::new(0),
             read_pos: AtomicUsize::new(0),
         }
