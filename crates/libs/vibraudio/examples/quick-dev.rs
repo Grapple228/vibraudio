@@ -1,6 +1,3 @@
-// ./crates/libs/vibraudio/examples/microphone_loopback_ring.rs
-//! Loopback с микрофона на колонки через кольцевой буфер
-
 use std::{
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -15,81 +12,74 @@ use vibraudio::{
     platform::DefaultBackend,
 };
 use vibraudio_core::{stream::StreamConfig, Backend};
-use vibraudio_ringbuffer::BufferWriter;
+use vibraudio_ringbuffer::create_pair;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("🎤 Loopback: Микрофон → Кольцевой буфер → Колонки");
-    println!("==============================================================");
+    println!("🎤 Loopback: Микрофон → Буфер → Колонки");
+    println!("====================================================");
 
-    const BUFFER_SIZE: usize = 128;
+    const FRAMES: usize = 512;
+    const CHANNELS: usize = 2;
+    const SAMPLES: usize = FRAMES * CHANNELS;
+    const RING_SIZE: usize = SAMPLES * 4;
 
     let config = StreamConfig {
         sample_rate: 48000,
-        channels: 2,
+        channels: CHANNELS as u16,
     };
 
-    let capture = DefaultBackend::<i16>::open("default", StreamDirection::Capture)?;
     let playback = DefaultBackend::<i16>::open("default", StreamDirection::Playback)?;
+    let capture = DefaultBackend::<i16>::open("default", StreamDirection::Capture)?;
 
-    let audio_config = AudioConfig::new(config.sample_rate, config.channels, 15_000);
-    capture.configure(&audio_config)?;
+    let audio_config = AudioConfig::new(config.sample_rate, config.channels, 10_000);
+
     playback.configure(&audio_config)?;
+    capture.configure(&audio_config)?;
 
-    let mut writer = BufferWriter::<{ BUFFER_SIZE * 2 }, i16>::new();
-    let reader = writer.reader();
+    let (writer, reader) = create_pair::<{ RING_SIZE }, i16>();
 
     let running = Arc::new(AtomicBool::new(true));
     let running_clone = running.clone();
 
-    // PRODUCER: читаем с микрофона
+    // PRODUCER
     let producer_handle = thread::spawn(move || {
+        let mut buffer = [0i16; SAMPLES];
+
         while running_clone.load(Ordering::SeqCst) {
-            while writer.available_space() < BUFFER_SIZE && running_clone.load(Ordering::SeqCst) {
-                thread::sleep(Duration::from_micros(100));
-            }
+            match capture.read_frames(&mut buffer, config.channels) {
+                Ok(frames_read) => {
+                    if frames_read > 0 {
+                        let samples = frames_read * config.channels as usize;
 
-            if !running_clone.load(Ordering::SeqCst) {
-                break;
-            }
-
-            if let Some(slice) = writer.reserve(BUFFER_SIZE) {
-                match capture.read_frames(slice, config.channels) {
-                    Ok(frames_read) => {
-                        if frames_read > 0 {
-                            let samples = frames_read * config.channels as usize;
-                            writer.commit(samples);
+                        let written = writer.write(&buffer[..samples]);
+                        if written < samples {
+                            thread::sleep(Duration::from_micros(10));
                         }
                     }
-                    Err(e) => {
-                        eprintln!("Capture error: {}", e);
-                        break;
-                    }
+                }
+                Err(e) => {
+                    eprintln!("❌ Capture error: {}", e);
                 }
             }
         }
     });
 
-    // CONSUMER: читаем из буфера и пишем в колонки
     let running_clone2 = running.clone();
     let consumer_handle = thread::spawn(move || {
-        let mut buffer = [0i16; BUFFER_SIZE];
+        let mut buffer = [0i16; SAMPLES];
 
         while running_clone2.load(Ordering::SeqCst) {
             let samples = reader.read(&mut buffer);
 
             if samples > 0 {
                 if let Err(e) = playback.write_frames(&buffer[..samples], config.channels) {
-                    eprintln!("Playback error: {}", e);
-                    break;
+                    eprintln!("❌ Playback error: {}", e);
                 }
-            } else {
-                thread::sleep(Duration::from_micros(100));
             }
         }
     });
 
     println!("Press Enter to stop...");
-
     let mut input = String::new();
     std::io::stdin().read_line(&mut input)?;
 
@@ -98,6 +88,5 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     consumer_handle.join().unwrap();
 
     println!("✅ Done!");
-
     Ok(())
 }

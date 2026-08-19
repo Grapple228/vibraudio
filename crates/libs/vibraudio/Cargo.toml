@@ -40,6 +40,7 @@ vibraudio-wasapi = { path = "../../libs/vibraudio-wasapi" }
 
 [dev-dependencies]
 anyhow = { workspace = true }
+ctrlc = "3.5.2"
 
 [build-dependencies]
 cc = "1.2"

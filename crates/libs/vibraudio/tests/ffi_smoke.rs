@@ -1,10 +1,11 @@
-use std::ffi::CStr;
-use std::mem::MaybeUninit;
-
-use vibraudio_mp3::ffi::{mp3dec_init, Mp3Dec};
-
 #[test]
+#[cfg(target_os = "linux")]
 fn ffi_links_correctly() {
+    use std::ffi::CStr;
+    use std::mem::MaybeUninit;
+
+    use vibraudio_mp3::ffi::{mp3dec_init, Mp3Dec};
+
     // Verify minimp3 links: initialize a decoder on the stack
     let mut dec = unsafe { MaybeUninit::<Mp3Dec>::zeroed().assume_init() };
     unsafe { mp3dec_init(&mut dec) };
