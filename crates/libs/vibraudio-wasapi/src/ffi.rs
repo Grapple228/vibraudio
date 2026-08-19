@@ -3,6 +3,11 @@ use std::ffi::c_void;
 
 // COM interfaces
 #[repr(C)]
+pub struct IUnknown {
+    vtable: *const c_void,
+}
+
+#[repr(C)]
 pub struct IAudioClient {
     vtable: *const c_void,
 }
@@ -29,13 +34,13 @@ pub struct IMMDeviceEnumerator {
 
 // Constants
 pub const AUDCLNT_SHAREMODE_SHARED: u32 = 0;
+pub const AUDCLNT_SHAREMODE_EXCLUSIVE: u32 = 1;
 pub const AUDCLNT_STREAMFLAGS_EVENTCALLBACK: u32 = 0x00040000;
 pub const CLSCTX_INPROC_SERVER: u32 = 1;
-pub const CLSCTX_ALL: u32 = 23;
 
 // GUID structure
 #[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub struct GUID {
     pub data1: u32,
     pub data2: u16,
@@ -92,7 +97,7 @@ pub const IID_IUnknown: GUID = GUID {
 };
 
 #[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub enum EDataFlow {
     eRender = 0,
     eCapture = 1,
@@ -100,7 +105,7 @@ pub enum EDataFlow {
 }
 
 #[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub enum ERole {
     eConsole = 0,
     eMultimedia = 1,
@@ -108,6 +113,7 @@ pub enum ERole {
 }
 
 #[repr(C)]
+#[derive(Copy, Clone, Debug)]
 pub struct WAVEFORMATEX {
     pub wFormatTag: u16,
     pub nChannels: u16,
@@ -118,7 +124,7 @@ pub struct WAVEFORMATEX {
     pub cbSize: u16,
 }
 
-// COM base functions (IUnknown)
+// COM function types
 pub type IUnknownQueryInterface = unsafe extern "system" fn(
     this: *mut c_void,
     riid: *const GUID,
@@ -128,7 +134,36 @@ pub type IUnknownQueryInterface = unsafe extern "system" fn(
 pub type IUnknownAddRef = unsafe extern "system" fn(this: *mut c_void) -> u32;
 pub type IUnknownRelease = unsafe extern "system" fn(this: *mut c_void) -> u32;
 
-unsafe extern "system" {
+// Helper to get vtable function
+#[inline]
+unsafe fn vtable_call<F>(ptr: *mut c_void, index: usize) -> F {
+    let vtable = *(ptr as *const *const *const c_void);
+    let func_ptr: *const c_void = *vtable.add(index);
+    std::mem::transmute_copy(&func_ptr)
+}
+
+// IUnknown methods
+#[inline]
+pub unsafe fn com_query_interface(ptr: *mut c_void, riid: &GUID, ppv: *mut *mut c_void) -> i32 {
+    let func: IUnknownQueryInterface = vtable_call(ptr, 0);
+    func(ptr, riid, ppv)
+}
+
+#[inline]
+pub unsafe fn com_add_ref(ptr: *mut c_void) -> u32 {
+    let func: IUnknownAddRef = vtable_call(ptr, 1);
+    func(ptr)
+}
+
+#[inline]
+pub unsafe fn com_release(ptr: *mut c_void) -> u32 {
+    let func: IUnknownRelease = vtable_call(ptr, 2);
+    func(ptr)
+}
+
+// COM API functions
+#[link(name = "ole32")]
+extern "system" {
     pub fn CoInitializeEx(pvReserved: *mut c_void, dwCoInit: u32) -> i32;
     pub fn CoUninitialize();
     pub fn CoCreateInstance(
@@ -141,30 +176,8 @@ unsafe extern "system" {
     pub fn CoTaskMemFree(pv: *mut c_void);
 }
 
-// Helper: get vtable function pointer at index
-unsafe fn vtable_call<F>(ptr: *mut c_void, index: usize) -> F {
-    let vtable = *(ptr as *const *const *const c_void);
-    let func_ptr: *const c_void = *vtable.add(index);
-    std::mem::transmute_copy(&func_ptr)
-}
-
-// IUnknown methods
-pub unsafe fn com_query_interface(ptr: *mut c_void, riid: &GUID, ppv: *mut *mut c_void) -> i32 {
-    let func: IUnknownQueryInterface = vtable_call(ptr, 0);
-    func(ptr, riid as *const GUID, ppv)
-}
-
-pub unsafe fn com_add_ref(ptr: *mut c_void) -> u32 {
-    let func: IUnknownAddRef = vtable_call(ptr, 1);
-    func(ptr)
-}
-
-pub unsafe fn com_release(ptr: *mut c_void) -> u32 {
-    let func: IUnknownRelease = vtable_call(ptr, 2);
-    func(ptr)
-}
-
 // IMMDeviceEnumerator methods
+#[inline]
 pub unsafe fn IMMDeviceEnumerator_GetDefaultAudioEndpoint(
     enumerator: *mut IMMDeviceEnumerator,
     data_flow: EDataFlow,
@@ -177,7 +190,20 @@ pub unsafe fn IMMDeviceEnumerator_GetDefaultAudioEndpoint(
     func(enumerator as *mut c_void, data_flow, role, device)
 }
 
+#[inline]
+pub unsafe fn IMMDeviceEnumerator_EnumAudioEndpoints(
+    enumerator: *mut IMMDeviceEnumerator,
+    data_flow: EDataFlow,
+    state_mask: u32,
+    devices: *mut *mut c_void,
+) -> i32 {
+    type Func = unsafe extern "system" fn(*mut c_void, EDataFlow, u32, *mut *mut c_void) -> i32;
+    let func: Func = vtable_call(enumerator as *mut c_void, 3);
+    func(enumerator as *mut c_void, data_flow, state_mask, devices)
+}
+
 // IMMDevice methods
+#[inline]
 pub unsafe fn IMMDevice_Activate(
     device: *mut IMMDevice,
     iid: *const GUID,
@@ -202,7 +228,15 @@ pub unsafe fn IMMDevice_Activate(
     )
 }
 
+#[inline]
+pub unsafe fn IMMDevice_GetId(device: *mut IMMDevice, id: *mut *mut u16) -> i32 {
+    type Func = unsafe extern "system" fn(*mut c_void, *mut *mut u16) -> i32;
+    let func: Func = vtable_call(device as *mut c_void, 4);
+    func(device as *mut c_void, id)
+}
+
 // IAudioClient methods
+#[inline]
 pub unsafe fn IAudioClient_Initialize(
     client: *mut IAudioClient,
     share_mode: u32,
@@ -233,12 +267,14 @@ pub unsafe fn IAudioClient_Initialize(
     )
 }
 
+#[inline]
 pub unsafe fn IAudioClient_GetBufferSize(client: *mut IAudioClient, buffer_size: *mut u32) -> i32 {
     type Func = unsafe extern "system" fn(*mut c_void, *mut u32) -> i32;
     let func: Func = vtable_call(client as *mut c_void, 4);
     func(client as *mut c_void, buffer_size)
 }
 
+#[inline]
 pub unsafe fn IAudioClient_GetCurrentPadding(
     client: *mut IAudioClient,
     num_padding_frames: *mut u32,
@@ -248,6 +284,7 @@ pub unsafe fn IAudioClient_GetCurrentPadding(
     func(client as *mut c_void, num_padding_frames)
 }
 
+#[inline]
 pub unsafe fn IAudioClient_IsFormatSupported(
     client: *mut IAudioClient,
     share_mode: u32,
@@ -264,6 +301,7 @@ pub unsafe fn IAudioClient_IsFormatSupported(
     func(client as *mut c_void, share_mode, format, closest_match)
 }
 
+#[inline]
 pub unsafe fn IAudioClient_GetMixFormat(
     client: *mut IAudioClient,
     pp_format: *mut *mut WAVEFORMATEX,
@@ -273,20 +311,7 @@ pub unsafe fn IAudioClient_GetMixFormat(
     func(client as *mut c_void, pp_format)
 }
 
-pub unsafe fn IAudioClient_GetDevicePeriod(
-    client: *mut IAudioClient,
-    default_device_period: *mut u64,
-    minimum_device_period: *mut u64,
-) -> i32 {
-    type Func = unsafe extern "system" fn(*mut c_void, *mut u64, *mut u64) -> i32;
-    let func: Func = vtable_call(client as *mut c_void, 9);
-    func(
-        client as *mut c_void,
-        default_device_period,
-        minimum_device_period,
-    )
-}
-
+#[inline]
 pub unsafe fn IAudioClient_GetService(
     client: *mut IAudioClient,
     riid: *const GUID,
@@ -297,18 +322,21 @@ pub unsafe fn IAudioClient_GetService(
     func(client as *mut c_void, riid, service)
 }
 
+#[inline]
 pub unsafe fn IAudioClient_Start(client: *mut IAudioClient) -> i32 {
     type Func = unsafe extern "system" fn(*mut c_void) -> i32;
     let func: Func = vtable_call(client as *mut c_void, 10);
     func(client as *mut c_void)
 }
 
+#[inline]
 pub unsafe fn IAudioClient_Stop(client: *mut IAudioClient) -> i32 {
     type Func = unsafe extern "system" fn(*mut c_void) -> i32;
     let func: Func = vtable_call(client as *mut c_void, 11);
     func(client as *mut c_void)
 }
 
+#[inline]
 pub unsafe fn IAudioClient_Reset(client: *mut IAudioClient) -> i32 {
     type Func = unsafe extern "system" fn(*mut c_void) -> i32;
     let func: Func = vtable_call(client as *mut c_void, 12);
@@ -316,6 +344,7 @@ pub unsafe fn IAudioClient_Reset(client: *mut IAudioClient) -> i32 {
 }
 
 // IAudioRenderClient methods
+#[inline]
 pub unsafe fn IAudioRenderClient_GetBuffer(
     client: *mut IAudioRenderClient,
     num_frames_requested: u32,
@@ -326,6 +355,7 @@ pub unsafe fn IAudioRenderClient_GetBuffer(
     func(client as *mut c_void, num_frames_requested, data)
 }
 
+#[inline]
 pub unsafe fn IAudioRenderClient_ReleaseBuffer(
     client: *mut IAudioRenderClient,
     num_frames_written: u32,
@@ -337,6 +367,7 @@ pub unsafe fn IAudioRenderClient_ReleaseBuffer(
 }
 
 // IAudioCaptureClient methods
+#[inline]
 pub unsafe fn IAudioCaptureClient_GetBuffer(
     client: *mut IAudioCaptureClient,
     data: *mut *mut u8,
@@ -364,6 +395,7 @@ pub unsafe fn IAudioCaptureClient_GetBuffer(
     )
 }
 
+#[inline]
 pub unsafe fn IAudioCaptureClient_ReleaseBuffer(
     client: *mut IAudioCaptureClient,
     num_frames_read: u32,
@@ -371,21 +403,4 @@ pub unsafe fn IAudioCaptureClient_ReleaseBuffer(
     type Func = unsafe extern "system" fn(*mut c_void, u32) -> i32;
     let func: Func = vtable_call(client as *mut c_void, 4);
     func(client as *mut c_void, num_frames_read)
-}
-
-// Helper functions for diagnostics
-pub unsafe fn is_valid_com_object(ptr: *mut c_void) -> bool {
-    if ptr.is_null() {
-        return false;
-    }
-    let vtable = *(ptr as *const *const c_void);
-    !vtable.is_null()
-}
-
-pub unsafe fn get_com_ref_count(ptr: *mut c_void) -> u32 {
-    if ptr.is_null() {
-        return 0;
-    }
-    com_add_ref(ptr);
-    com_release(ptr)
 }

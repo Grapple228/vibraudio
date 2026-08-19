@@ -8,6 +8,10 @@ description.workspace = true
 repository.workspace = true
 readme.workspace = true
 
+[profile.release]
+opt-level = 1
+lto = false
+
 [lib]
 doctest = false
 

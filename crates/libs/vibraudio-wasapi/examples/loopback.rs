@@ -9,9 +9,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let capture = WasapiBackend::<i16>::open("default", StreamDirection::Capture)?;
     let playback = WasapiBackend::<i16>::open("default", StreamDirection::Playback)?;
 
-    let config = AudioConfig::new(44100, 2, 30_000);
-    capture.configure(&config)?;
-    playback.configure(&config)?;
+    let config = AudioConfig::new(48000, 2, 15_000);
+    playback.configure(&config).expect("playback config");
+    capture.configure(&config).expect("capture config");
 
     let mut buffer = [0i16; 2048];
 

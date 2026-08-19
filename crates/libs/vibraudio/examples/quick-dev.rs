@@ -25,7 +25,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let config = StreamConfig {
         sample_rate: 48000,
-        channels: 1,
+        channels: 2,
     };
 
     let capture = DefaultBackend::<i16>::open("default", StreamDirection::Capture)?;

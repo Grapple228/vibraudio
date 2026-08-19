@@ -2,54 +2,50 @@
 use vibraudio_core::Error;
 
 pub trait FromWindows {
-    fn from_windows(code: u32) -> Error;
+    fn from_windows(code: i32) -> Error;
 }
 
 impl FromWindows for Error {
-    fn from_windows(code: u32) -> Error {
+    fn from_windows(code: i32) -> Error {
         let message = match code {
-            0x00000000 => "S_OK",
-            0x00000001 => "S_FALSE",
-            0x80004001 => "E_NOTIMPL",
-            0x80004002 => "E_NOINTERFACE",
-            0x80004003 => "E_POINTER",
-            0x80004004 => "E_ABORT",
-            0x80004005 => "E_FAIL",
-            0x80070005 => "E_ACCESSDENIED",
-            0x80070006 => "E_HANDLE",
-            0x8007000E => "E_OUTOFMEMORY",
-            0x80070057 => "E_INVALIDARG",
-            0x800700AA => "E_CANNOT_OPEN",
-            0x88890001 => "AUDCLNT_E_NOT_INITIALIZED",
-            0x88890002 => "AUDCLNT_E_ALREADY_INITIALIZED",
-            0x88890003 => "AUDCLNT_E_WRONG_ENDPOINT_TYPE",
-            0x88890004 => "AUDCLNT_E_DEVICE_INVALIDATED",
-            0x88890005 => "AUDCLNT_E_NOT_STOPPED",
-            0x88890006 => "AUDCLNT_E_BUFFER_TOO_LARGE",
-            0x88890007 => "AUDCLNT_E_OUT_OF_ORDER",
-            0x88890008 => "AUDCLNT_E_UNSUPPORTED_FORMAT",
-            0x88890009 => "AUDCLNT_E_INVALID_SIZE",
-            0x8889000A => "AUDCLNT_E_DEVICE_IN_USE",
-            0x8889000B => "AUDCLNT_E_BUFFER_OPERATION_PENDING",
-            0x8889000C => "AUDCLNT_E_THREAD_NOT_REGISTERED",
-            0x8889000D => "AUDCLNT_E_EXCLUSIVE_MODE_NOT_ALLOWED",
-            0x8889000E => "AUDCLNT_E_ENDPOINT_CREATE_FAILED",
-            0x8889000F => "AUDCLNT_E_SERVICE_NOT_RUNNING",
-            0x88890010 => "AUDCLNT_E_EVENTHANDLE_NOT_EXPECTED",
-            0x88890011 => "AUDCLNT_E_EXCLUSIVE_MODE_ONLY",
-            0x88890012 => "AUDCLNT_E_BUFDURATION_PERIOD_NOT_EQUAL",
-            0x88890013 => "AUDCLNT_E_EVENTHANDLE_NOT_SET",
-            0x88890014 => "AUDCLNT_E_INCORRECT_BUFFER_SIZE",
-            0x88890015 => "AUDCLNT_E_BUFFER_SIZE_ERROR",
-            0x88890016 => "AUDCLNT_E_CPUUSAGE_EXCEEDED",
-            0x88890017 => "AUDCLNT_E_BUFFER_ERROR",
-            0x88890018 => "AUDCLNT_E_BUFFER_SIZE_NOT_ALIGNED",
-            0x88890019 => "AUDCLNT_E_INVALID_DEVICE_PERIOD",
+            0 => "S_OK",
+            1 => "S_FALSE",
+            -2147467263 => "E_NOTIMPL",
+            -2147467262 => "E_NOINTERFACE",
+            -2147467261 => "E_POINTER",
+            -2147467260 => "E_ABORT",
+            -2147467259 => "E_FAIL",
+            -2147024891 => "E_ACCESSDENIED",
+            -2147024890 => "E_HANDLE",
+            -2147024882 => "E_OUTOFMEMORY",
+            -2147024809 => "E_INVALIDARG",
+            -2004287487 => "AUDCLNT_E_NOT_INITIALIZED",
+            -2004287486 => "AUDCLNT_E_ALREADY_INITIALIZED",
+            -2004287485 => "AUDCLNT_E_WRONG_ENDPOINT_TYPE",
+            -2004287484 => "AUDCLNT_E_DEVICE_INVALIDATED",
+            -2004287483 => "AUDCLNT_E_NOT_STOPPED",
+            -2004287482 => "AUDCLNT_E_BUFFER_TOO_LARGE",
+            -2004287481 => "AUDCLNT_E_OUT_OF_ORDER",
+            -2004287480 => "AUDCLNT_E_UNSUPPORTED_FORMAT",
+            -2004287479 => "AUDCLNT_E_INVALID_SIZE",
+            -2004287478 => "AUDCLNT_E_DEVICE_IN_USE",
+            -2004287477 => "AUDCLNT_E_BUFFER_OPERATION_PENDING",
+            -2004287476 => "AUDCLNT_E_THREAD_NOT_REGISTERED",
+            -2004287475 => "AUDCLNT_E_EXCLUSIVE_MODE_NOT_ALLOWED",
+            -2004287474 => "AUDCLNT_E_ENDPOINT_CREATE_FAILED",
+            -2004287473 => "AUDCLNT_E_SERVICE_NOT_RUNNING",
+            -2004287472 => "AUDCLNT_E_EVENTHANDLE_NOT_EXPECTED",
+            -2004287471 => "AUDCLNT_E_EXCLUSIVE_MODE_ONLY",
+            -2004287470 => "AUDCLNT_E_BUFDURATION_PERIOD_NOT_EQUAL",
+            -2004287469 => "AUDCLNT_E_EVENTHANDLE_NOT_SET",
+            -2004287468 => "AUDCLNT_E_INCORRECT_BUFFER_SIZE",
+            -2004287467 => "AUDCLNT_E_BUFFER_SIZE_ERROR",
+            -2004287466 => "AUDCLNT_E_CPUUSAGE_EXCEEDED",
+            -2004287465 => "AUDCLNT_E_BUFFER_ERROR",
+            -2004287464 => "AUDCLNT_E_BUFFER_SIZE_NOT_ALIGNED",
+            -2004287463 => "AUDCLNT_E_INVALID_DEVICE_PERIOD",
             _ => "Unknown Windows error",
         };
-        Error::Ffi {
-            code: code as i32,
-            message,
-        }
+        Error::Ffi { code, message }
     }
 }
