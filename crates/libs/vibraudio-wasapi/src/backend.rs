@@ -284,7 +284,7 @@ impl<S: Sample> WasapiBackend<S> {
 impl<S: Sample> Backend<S> for WasapiBackend<S> {
     const FRAMES: usize = 512;
 
-    fn open(name: &str, direction: StreamDirection) -> Result<Self> {
+    fn open(_name: &str, direction: StreamDirection) -> Result<Self> {
         ensure_com_initialized();
 
         let mut backend = Self::new()?;

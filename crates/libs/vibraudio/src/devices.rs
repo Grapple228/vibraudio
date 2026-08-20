@@ -135,28 +135,3 @@ impl Mic {
         }
     }
 }
-
-pub fn tst() -> std::result::Result<(), Box<dyn std::error::Error>> {
-    let config = AudioConfig {
-        sample_rate: 48000,
-        channels: 2,
-        latency: 10_000,
-    };
-
-    let (writer, reader) = vibraudio_ringbuffer::create_pair::<RING_SIZE, i16>();
-
-    let mut speakers = Speakers::new(config)?;
-    speakers.run(reader)?;
-
-    let mut mic = Mic::new(config)?;
-    mic.run(writer)?;
-
-    println!("Press Enter to stop...");
-    let mut input = String::new();
-    std::io::stdin().read_line(&mut input)?;
-
-    speakers.stop();
-    mic.stop();
-
-    Ok(())
-}

@@ -1,18 +1,4 @@
-use std::{
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc,
-    },
-    thread,
-    time::Duration,
-};
-
-use vibraudio::{
-    core::{AudioConfig, StreamDirection},
-    platform::DefaultBackend,
-};
-use vibraudio_core::{stream::StreamConfig, Backend};
-use vibraudio_ringbuffer::create_pair;
+use vibraudio::core::AudioConfig;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     use vibraudio::devices::{Mic, Speakers, RING_SIZE};

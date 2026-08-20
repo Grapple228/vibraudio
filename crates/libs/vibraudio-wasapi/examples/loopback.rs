@@ -1,5 +1,4 @@
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    use std::io;
     use vibraudio_core::{AudioConfig, Backend, StreamDirection};
     use vibraudio_wasapi::WasapiBackend;
 

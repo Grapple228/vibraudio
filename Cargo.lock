@@ -367,7 +367,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "cc",
- "ctrlc",
  "derive_more",
  "tracing",
  "tracing-subscriber",
