@@ -12,6 +12,7 @@ pub enum Error {
     InvalidConfig,
     EndOfInput,
     DecodeFailed,
+    AlreadyRunning,
 
     Ffi {
         code: c_int,
