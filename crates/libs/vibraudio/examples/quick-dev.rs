@@ -60,6 +60,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     eprintln!("❌ Capture error: {}", e);
                 }
             }
+
+            #[cfg(target_os = "windows")]
+            thread::sleep(Duration::from_micros(10));
         }
     });
 
@@ -75,6 +78,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     eprintln!("❌ Playback error: {}", e);
                 }
             }
+
+            #[cfg(target_os = "windows")]
+            thread::sleep(Duration::from_micros(10));
         }
     });
 
