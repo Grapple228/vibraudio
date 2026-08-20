@@ -28,22 +28,27 @@ impl<B: Backend<S>, S: Sample> PcmDevice<B, S> {
         })
     }
 
+    #[inline(always)]
     pub fn configure(&self, config: &AudioConfig) -> Result<()> {
         self.backend.configure(config)
     }
 
+    #[inline(always)]
     pub fn write_frames(&self, buffer: &[S], channels: u16) -> Result<usize> {
         self.backend.write_frames(buffer, channels)
     }
 
+    #[inline(always)]
     pub fn read_frames(&self, buffer: &mut [S], channels: u16) -> Result<usize> {
         self.backend.read_frames(buffer, channels)
     }
 
+    #[inline(always)]
     pub fn reset(&self) -> Result<()> {
         self.backend.reset()
     }
 
+    #[inline(always)]
     pub fn close(&self) -> Result<()> {
         self.backend.close()
     }

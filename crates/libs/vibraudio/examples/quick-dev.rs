@@ -18,9 +18,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("🎤 Loopback: Микрофон → Буфер → Колонки");
     println!("====================================================");
 
-    const FRAMES: usize = 512;
-    const CHANNELS: usize = 2;
-    const SAMPLES: usize = FRAMES * CHANNELS;
+    const CHANNELS: usize = 1;
+    const SAMPLES: usize = DefaultBackend::<i16>::FRAMES * CHANNELS;
     const RING_SIZE: usize = SAMPLES * 4;
 
     let config = StreamConfig {

@@ -5,6 +5,8 @@ use crate::{
 };
 
 pub trait Backend<S: Sample>: Sized + Send + Sync + 'static {
+    const FRAMES: usize;
+
     fn open(name: &str, direction: StreamDirection) -> Result<Self>;
     fn configure(&self, config: &AudioConfig) -> Result<()>;
     fn supported_formats(&self) -> Result<Vec<AudioFormatInfo>> {

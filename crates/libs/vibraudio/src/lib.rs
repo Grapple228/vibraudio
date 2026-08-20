@@ -8,6 +8,9 @@ pub mod mp3 {
     pub use vibraudio_mp3::*;
 }
 
+pub mod sink;
+pub mod source;
+
 #[doc = "hidden"]
 pub mod ringbuffer {
     pub use vibraudio_ringbuffer::*;
