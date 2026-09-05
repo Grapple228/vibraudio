@@ -24,6 +24,7 @@ members = [
     # -- Application Libraries
     "crates/libs/vibraudio",
     "crates/libs/vibraudio-core",
+    "crates/libs/vibraudio-thread",
     "crates/libs/vibraudio-ringbuffer",
     "crates/libs/vibraudio-alsa",
     "crates/libs/vibraudio-wasapi",

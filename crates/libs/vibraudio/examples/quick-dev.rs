@@ -1,4 +1,5 @@
 use vibraudio::core::AudioConfig;
+use vibraudio_thread::{MmcssValue, Priority};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     use vibraudio::devices::{Mic, Speakers, RING_SIZE};
@@ -15,10 +16,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (writer, reader) = vibraudio_ringbuffer::create_pair::<{ RING_SIZE }, i16>();
 
     let mut speakers = Speakers::new(config)?;
-    speakers.run(reader)?;
+    speakers.run(reader, Priority::Critical, MmcssValue::Audio)?;
 
     let mut mic = Mic::new(config)?;
-    mic.run(writer)?;
+    mic.run(writer, Priority::Critical, MmcssValue::Audio)?;
 
     println!("Press Enter to stop...");
     let mut input = String::new();

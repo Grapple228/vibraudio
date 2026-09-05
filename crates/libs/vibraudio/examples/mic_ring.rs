@@ -15,6 +15,7 @@ use vibraudio::{
 };
 use vibraudio_core::{stream::StreamConfig, Backend};
 use vibraudio_ringbuffer::BufferWriter;
+use vibraudio_thread::Priority;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("🎤 Loopback: Микрофон → Кольцевой буфер → Колонки");
@@ -40,6 +41,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // PRODUCER: читаем с микрофона
     let producer_handle = thread::spawn(move || {
+        let _handle = vibraudio_thread::configure_audio_thread(
+            Priority::Critical,
+            #[cfg(target_os = "windows")]
+            vibraudio_thread::MmcssValue::Audio,
+        );
+
         let mut buffer = [0i16; DefaultBackend::<i16>::FRAMES * 2];
 
         while running_clone.load(Ordering::SeqCst) {
@@ -61,6 +68,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // CONSUMER: читаем из буфера и пишем в колонки
     let running_clone2 = running.clone();
     let consumer_handle = thread::spawn(move || {
+        let _handle = vibraudio_thread::configure_audio_thread(
+            Priority::Critical,
+            #[cfg(target_os = "windows")]
+            vibraudio_thread::MmcssValue::Audio,
+        );
+
         let mut buffer = [0i16; DefaultBackend::<i16>::FRAMES * 2];
 
         while running_clone2.load(Ordering::SeqCst) {

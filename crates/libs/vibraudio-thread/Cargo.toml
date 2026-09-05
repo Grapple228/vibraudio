@@ -1,5 +1,5 @@
 [package]
-name = "vibraudio"
+name = "vibraudio-thread"
 edition.workspace = true
 version.workspace = true
 license.workspace = true
@@ -8,11 +8,9 @@ description.workspace = true
 repository.workspace = true
 readme.workspace = true
 
-[[example]]
-name = "play"
-path = "examples/play.rs"
-
-[features]
+[profile.release]
+opt-level = 1
+lto = false
 
 [lib]
 doctest = false
@@ -21,23 +19,16 @@ doctest = false
 workspace = true
 
 [dependencies]
-# -- Core
+# -- App Libs
 vibraudio-core = { path = "../../libs/vibraudio-core" }
-vibraudio-ringbuffer = { path = "../../libs/vibraudio-ringbuffer" }
-vibraudio-mp3 = { path = "../../libs/vibraudio-mp3" }
-vibraudio-thread = { path = "../../libs/vibraudio-thread" }
-
 # -- Tracing
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 # -- Others
 derive_more = { workspace = true }
 
-[target.'cfg(target_os = "linux")'.dependencies]
-vibraudio-alsa = { path = "../../libs/vibraudio-alsa" }
-
 [target.'cfg(target_os = "windows")'.dependencies]
-vibraudio-wasapi = { path = "../../libs/vibraudio-wasapi" }
+winapi = { version = "0.3.9", features = ["winbase", "processthreadsapi", "avrt"] }
 
 [dev-dependencies]
 anyhow = { workspace = true }

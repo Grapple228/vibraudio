@@ -15,6 +15,11 @@ pub mod ringbuffer {
     pub use vibraudio_ringbuffer::*;
 }
 
+#[doc = "hidden"]
+pub mod thread {
+    pub use vibraudio_thread::*;
+}
+
 pub mod backend {
     #[cfg(target_os = "linux")]
     pub mod alsa {

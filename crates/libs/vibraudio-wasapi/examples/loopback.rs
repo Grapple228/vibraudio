@@ -1,3 +1,5 @@
+use std::io::stdin;
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     use vibraudio_core::{AudioConfig, Backend, StreamDirection};
     use vibraudio_wasapi::WasapiBackend;
@@ -19,11 +21,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let running = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
     let running_clone = running.clone();
 
-    // Handle Ctrl+C
-    ctrlc::set_handler(move || {
-        running_clone.store(false, std::sync::atomic::Ordering::SeqCst);
-    })?;
-
     while running.load(std::sync::atomic::Ordering::SeqCst) {
         match capture.read_frames(&mut buffer, config.channels) {
             Ok(frames_read) => {
@@ -38,6 +35,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
     }
+
+    let mut input = String::new();
+    _ = stdin().read_line(&mut input);
+
+    running_clone.store(false, std::sync::atomic::Ordering::SeqCst);
 
     println!("Stopped.");
     Ok(())

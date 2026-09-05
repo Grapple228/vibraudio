@@ -8,6 +8,7 @@ use vibraudio_core::Backend;
 use vibraudio_core::StreamDirection;
 use vibraudio_core::{Error, Result};
 use vibraudio_ringbuffer::{BufferReader, BufferWriter};
+use vibraudio_thread::{MmcssValue, Priority};
 
 pub struct Speakers {
     config: AudioConfig,
@@ -27,7 +28,12 @@ impl Speakers {
         })
     }
 
-    pub fn run(&mut self, reader: BufferReader<RING_SIZE, i16>) -> Result<()> {
+    pub fn run(
+        &mut self,
+        reader: BufferReader<RING_SIZE, i16>,
+        priority: Priority,
+        #[cfg(target_os = "windows")] mcss_value: MmcssValue,
+    ) -> Result<()> {
         if self.running.load(Ordering::SeqCst) {
             return Err(Error::AlreadyRunning);
         }
@@ -39,6 +45,12 @@ impl Speakers {
         let running = self.running.clone();
 
         let handle = thread::spawn(move || {
+            let _handle = vibraudio_thread::configure_audio_thread(
+                priority,
+                #[cfg(target_os = "windows")]
+                mcss_value,
+            );
+
             let mut buffer = [0i16; DefaultBackend::<i16>::FRAMES * 2];
 
             while running.load(Ordering::SeqCst) {
@@ -86,7 +98,12 @@ impl Mic {
         })
     }
 
-    pub fn run(&mut self, writer: BufferWriter<RING_SIZE, i16>) -> Result<()> {
+    pub fn run(
+        &mut self,
+        writer: BufferWriter<RING_SIZE, i16>,
+        priority: Priority,
+        #[cfg(target_os = "windows")] mcss_value: MmcssValue,
+    ) -> Result<()> {
         if self.running.load(Ordering::SeqCst) {
             return Err(Error::AlreadyRunning);
         }
@@ -98,6 +115,12 @@ impl Mic {
         let running = self.running.clone();
 
         let handle = thread::spawn(move || {
+            let _handle = vibraudio_thread::configure_audio_thread(
+                priority,
+                #[cfg(target_os = "windows")]
+                mcss_value,
+            );
+
             let mut buffer = [0i16; DefaultBackend::<i16>::FRAMES * 2];
 
             while running.load(Ordering::SeqCst) {
