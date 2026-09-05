@@ -1,7 +1,7 @@
 use crate::SampleFormat;
 
 /// Трейт для аудио семплов
-pub trait Sample: Copy + Send + Sync + 'static {
+pub trait Sample: Copy + Send + PartialEq + 'static {
     const ZERO: Self;
 
     fn from_f32(value: f32) -> Self;
@@ -10,12 +10,15 @@ pub trait Sample: Copy + Send + Sync + 'static {
 
     /// Проверяет, является ли семпл тишиной
     fn is_silence(&self) -> bool {
-        self.to_f32() == 0.0
+        Self::ZERO == *self
     }
 
     fn sample_format() -> SampleFormat {
         SampleFormat::S16Le
     }
+
+    fn add(&self, other: Self) -> Self;
+    fn mul(&self, other: Self) -> Self;
 }
 
 impl Sample for i16 {
@@ -35,6 +38,16 @@ impl Sample for i16 {
     fn silence() -> Self {
         0
     }
+
+    #[inline(always)]
+    fn add(&self, other: Self) -> Self {
+        *self + other
+    }
+
+    #[inline(always)]
+    fn mul(&self, other: Self) -> Self {
+        *self * other
+    }
 }
 
 impl Sample for f32 {
@@ -53,5 +66,15 @@ impl Sample for f32 {
     #[inline(always)]
     fn silence() -> Self {
         0.0
+    }
+
+    #[inline(always)]
+    fn add(&self, other: Self) -> Self {
+        *self + other
+    }
+
+    #[inline(always)]
+    fn mul(&self, other: Self) -> Self {
+        *self * other
     }
 }

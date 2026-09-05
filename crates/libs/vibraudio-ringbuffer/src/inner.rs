@@ -37,42 +37,35 @@ impl<const N: usize, S: Sample> RingBufferInner<N, S> {
         N - self.available_data() - 1
     }
 
-    pub unsafe fn read_data(&self, dst: &mut [S]) -> usize {
+    /// Возвращает доступные данные как два слайса (для wrap-around)
+    ///
+    /// # Safety
+    /// Нельзя вызывать одновременно с write_data или as_slices_mut
+    pub unsafe fn as_slices(&self) -> (&[S], &[S]) {
         let read = self.read_pos.load(Ordering::Acquire);
         let write = self.write_pos.load(Ordering::Acquire);
 
-        let used = if write >= read {
-            write - read
-        } else {
-            N - (read - write)
-        };
-        let to_read = dst.len().min(used);
-
-        if to_read == 0 {
-            return 0;
+        if read == write {
+            return (&[], &[]);
         }
 
-        let data_ptr = self.data.get() as *mut S;
-        let data_slice = std::slice::from_raw_parts_mut(data_ptr, N);
+        let data_ptr = self.data.get() as *const S;
+        let data_slice = std::slice::from_raw_parts(data_ptr, N);
 
-        let end = read + to_read;
-        if end <= N {
-            dst[..to_read].copy_from_slice(&data_slice[read..end]);
+        if write > read {
+            (&data_slice[read..write], &[])
         } else {
-            let first_part = N - read;
-            dst[..first_part].copy_from_slice(&data_slice[read..N]);
-            dst[first_part..to_read].copy_from_slice(&data_slice[..end - N]);
+            (&data_slice[read..N], &data_slice[..write])
         }
-
-        let new_read = if end == N { 0 } else { end % N };
-        self.read_pos.store(new_read, Ordering::Release);
-
-        to_read
     }
 
-    pub unsafe fn write_data(&self, src: &[S]) -> usize {
-        let write = self.write_pos.load(Ordering::Acquire);
+    /// Возвращает свободное место как два слайса (для wrap-around)
+    ///
+    /// # Safety
+    /// Нельзя вызывать одновременно с read_data или as_slices
+    pub unsafe fn as_slices_mut(&self) -> (&mut [S], &mut [S]) {
         let read = self.read_pos.load(Ordering::Acquire);
+        let write = self.write_pos.load(Ordering::Acquire);
 
         let used = if write >= read {
             write - read
@@ -80,27 +73,114 @@ impl<const N: usize, S: Sample> RingBufferInner<N, S> {
             N - (read - write)
         };
         let free = N - used - 1;
-        let to_write = src.len().min(free);
 
-        if to_write == 0 {
-            return 0;
+        if free == 0 {
+            return (&mut [], &mut []);
         }
 
         let data_ptr = self.data.get() as *mut S;
         let data_slice = std::slice::from_raw_parts_mut(data_ptr, N);
 
-        let end = write + to_write;
-        if end <= N {
-            data_slice[write..end].copy_from_slice(&src[..to_write]);
+        if write >= read {
+            // Свободное место: [write..N) + [0..read)
+            let (before_write, after_write) = data_slice.split_at_mut(write);
+            let to_end = after_write.len().min(free);
+            let remaining = free - to_end;
+
+            (&mut after_write[..to_end], &mut before_write[..remaining])
         } else {
-            let first_part = N - write;
-            data_slice[write..N].copy_from_slice(&src[..first_part]);
-            data_slice[..end - N].copy_from_slice(&src[first_part..to_write]);
+            // write < read: свободное место [write..read)
+            let (_, after_write) = data_slice.split_at_mut(write);
+            let len = (read - write).min(free);
+            (&mut after_write[..len], &mut [])
+        }
+    }
+
+    /// Продвигает указатель чтения
+    ///
+    /// # Safety
+    /// Нельзя продвигать больше чем available_data
+    pub unsafe fn advance_read(&self, count: usize) {
+        let read = self.read_pos.load(Ordering::Acquire);
+        let new_read = (read + count) % N;
+        self.read_pos.store(new_read, Ordering::Release);
+    }
+
+    /// Продвигает указатель записи
+    ///
+    /// # Safety
+    /// Нельзя продвигать больше чем available_space
+    pub unsafe fn advance_write(&self, count: usize) {
+        let write = self.write_pos.load(Ordering::Acquire);
+        let new_write = (write + count) % N;
+        self.write_pos.store(new_write, Ordering::Release);
+    }
+
+    /// Читает данные в dst
+    pub unsafe fn read_data(&self, dst: &mut [S]) -> usize {
+        let (first, second) = self.as_slices();
+        let to_read = dst.len().min(first.len() + second.len());
+
+        if to_read == 0 {
+            return 0;
         }
 
-        let new_write = if end == N { 0 } else { end % N };
-        self.write_pos.store(new_write, Ordering::Release);
+        let first_len = first.len().min(to_read);
+        dst[..first_len].copy_from_slice(&first[..first_len]);
 
-        to_write
+        let remaining = to_read - first_len;
+        if remaining > 0 {
+            dst[first_len..to_read].copy_from_slice(&second[..remaining]);
+        }
+
+        self.advance_read(to_read);
+        to_read
+    }
+
+    /// Читает данные и добавляет их к dst
+    pub unsafe fn read_add_data(&self, dst: &mut [S], volume: S) -> usize {
+        let (first, second) = self.as_slices();
+        let to_read = dst.len().min(first.len() + second.len());
+
+        if to_read == 0 {
+            return 0;
+        }
+
+        let first_len = first.len().min(to_read);
+        for i in 0..first_len {
+            dst[i] = dst[i].add(first[i].mul(volume));
+        }
+
+        let remaining = to_read - first_len;
+        if remaining > 0 {
+            for i in 0..remaining {
+                dst[first_len + i] = dst[first_len + i].add(second[i].mul(volume));
+            }
+        }
+
+        self.advance_read(to_read);
+        to_read
+    }
+
+    /// Записывает данные из src
+    pub unsafe fn write_data(&self, src: &[S]) -> usize {
+        let (first, second) = self.as_slices_mut();
+
+        let mut written = 0;
+
+        // Пишем в первый слайс
+        let first_len = first.len().min(src.len());
+        first[..first_len].copy_from_slice(&src[..first_len]);
+        written += first_len;
+
+        // Пишем во второй слайс (если остались данные)
+        if written < src.len() && !second.is_empty() {
+            let second_len = second.len().min(src.len() - written);
+            second[..second_len].copy_from_slice(&src[written..written + second_len]);
+            written += second_len;
+        }
+
+        self.advance_write(written);
+        written
     }
 }

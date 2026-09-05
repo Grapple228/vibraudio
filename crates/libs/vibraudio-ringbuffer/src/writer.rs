@@ -24,19 +24,37 @@ impl<const N: usize, S: Sample> BufferWriter<N, S> {
         unsafe { self.inner.write_data(src) }
     }
 
+    /// Возвращает свободное место как слайсы (без копирования)
+    pub fn as_slices_mut(&self) -> (&mut [S], &mut [S]) {
+        unsafe { self.inner.as_slices_mut() }
+    }
+
+    /// Продвигает указатель записи
+    pub fn advance(&self, count: usize) {
+        unsafe { self.inner.advance_write(count) }
+    }
+
     pub fn available_space(&self) -> usize {
         self.inner.available_space()
     }
 
-    pub fn reserve(&mut self, size: usize) -> Option<&mut [S]> {
+    /// Резервирует место для записи (с обработкой wrap-around)
+    pub fn reserve(&self, size: usize) -> Option<(&mut [S], &mut [S])> {
         if self.available_space() < size {
             return None;
         }
-        let write = self.inner.write_pos.load(Ordering::Acquire);
+
         unsafe {
-            let data_ptr = self.inner.data.get() as *mut S;
-            let data_slice = std::slice::from_raw_parts_mut(data_ptr, N);
-            Some(&mut data_slice[write..write + size])
+            let (first, second) = self.inner.as_slices_mut();
+
+            if first.len() >= size {
+                // Всё помещается в первый слайс
+                Some((&mut first[..size], &mut []))
+            } else {
+                // Нужно использовать оба слайса
+                let remaining = size - first.len();
+                Some((first, &mut second[..remaining]))
+            }
         }
     }
 
