@@ -20,7 +20,7 @@ pub struct Speakers<S: Sample> {
     phantom: PhantomData<S>,
 }
 
-pub const RING_SIZE: usize = crate::platform::FRAMES * 2 * 4;
+pub const RING_SIZE: usize = crate::platform::FRAMES * 2;
 
 impl<S: Sample> Speakers<S> {
     pub fn new(config: AudioConfig) -> Result<Self> {
@@ -32,9 +32,9 @@ impl<S: Sample> Speakers<S> {
         })
     }
 
-    pub fn run(
+    pub fn run<const SIZE: usize>(
         &mut self,
-        reader: BufferReader<RING_SIZE, S>,
+        reader: BufferReader<SIZE, S>,
         priority: Priority,
         #[cfg(target_os = "windows")] mcss_value: MmcssValue,
     ) -> Result<()> {
@@ -56,13 +56,13 @@ impl<S: Sample> Speakers<S> {
             );
 
             let mut buffer = [S::ZERO; crate::platform::FRAMES * 2];
+            let max_samples = crate::platform::FRAMES * channels as usize;
 
             while running.load(Ordering::SeqCst) {
-                let samples =
-                    reader.read(&mut buffer[..crate::platform::FRAMES * channels as usize]);
+                let read = reader.read(&mut buffer[..max_samples]);
 
-                if samples > 0 {
-                    if let Err(e) = backend.write_frames(&buffer[..samples], channels) {
+                if read > 0 {
+                    if let Err(e) = backend.write_frames(&buffer[..read], channels) {
                         eprintln!("❌ Playback error: {}", e);
                     }
                 }
@@ -104,9 +104,9 @@ impl<S: Sample> Mic<S> {
         })
     }
 
-    pub fn run(
+    pub fn run<const SIZE: usize>(
         &mut self,
-        writer: BufferWriter<RING_SIZE, S>,
+        writer: BufferWriter<SIZE, S>,
         priority: Priority,
         #[cfg(target_os = "windows")] mcss_value: MmcssValue,
     ) -> Result<()> {

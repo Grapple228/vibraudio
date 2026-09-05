@@ -10,7 +10,6 @@ use std::{
 };
 use vibraudio::{
     core::{AudioConfig, StreamDirection},
-    devices::RING_SIZE,
     platform::DefaultBackend,
 };
 use vibraudio_core::{sample::Sample, stream::StreamConfig, Backend};
@@ -31,11 +30,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let capture = DefaultBackend::<SampleType>::open("default", StreamDirection::Capture)?;
     let playback = DefaultBackend::<SampleType>::open("default", StreamDirection::Playback)?;
 
-    let audio_config = AudioConfig::new(config.sample_rate, config.channels, 15_000);
+    let audio_config = AudioConfig::new(config.sample_rate, config.channels, 10_000);
     capture.configure(&audio_config)?;
     playback.configure(&audio_config)?;
 
-    let writer = BufferWriter::<RING_SIZE, SampleType>::new();
+    let writer = BufferWriter::<{ vibraudio::devices::RING_SIZE }, SampleType>::new();
     let reader = writer.reader();
 
     let running = Arc::new(AtomicBool::new(true));

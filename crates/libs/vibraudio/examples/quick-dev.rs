@@ -4,7 +4,7 @@ use vibraudio_thread::{MmcssValue, Priority};
 pub type SampleType = f32;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    use vibraudio::devices::{Mic, Speakers, RING_SIZE};
+    use vibraudio::devices::{Mic, Speakers};
 
     println!("🎤 Loopback: Микрофон → Буфер → Колонки");
     println!("====================================================");
@@ -15,7 +15,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         latency: 10_000,
     };
 
-    let (writer, reader) = vibraudio_ringbuffer::create_pair::<{ RING_SIZE }, SampleType>();
+    let (writer, reader) =
+        vibraudio_ringbuffer::create_pair::<{ vibraudio::devices::RING_SIZE }, SampleType>();
 
     let mut speakers = Speakers::new(config)?;
     speakers.run(reader, Priority::Critical, MmcssValue::Audio)?;
