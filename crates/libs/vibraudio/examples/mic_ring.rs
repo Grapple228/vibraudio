@@ -13,9 +13,11 @@ use vibraudio::{
     devices::RING_SIZE,
     platform::DefaultBackend,
 };
-use vibraudio_core::{stream::StreamConfig, Backend};
+use vibraudio_core::{sample::Sample, stream::StreamConfig, Backend};
 use vibraudio_ringbuffer::BufferWriter;
 use vibraudio_thread::Priority;
+
+pub type SampleType = f32;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("🎤 Loopback: Микрофон → Кольцевой буфер → Колонки");
@@ -26,14 +28,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         channels: 2,
     };
 
-    let capture = DefaultBackend::<i16>::open("default", StreamDirection::Capture)?;
-    let playback = DefaultBackend::<i16>::open("default", StreamDirection::Playback)?;
+    let capture = DefaultBackend::<SampleType>::open("default", StreamDirection::Capture)?;
+    let playback = DefaultBackend::<SampleType>::open("default", StreamDirection::Playback)?;
 
     let audio_config = AudioConfig::new(config.sample_rate, config.channels, 15_000);
     capture.configure(&audio_config)?;
     playback.configure(&audio_config)?;
 
-    let writer = BufferWriter::<RING_SIZE, i16>::new();
+    let writer = BufferWriter::<RING_SIZE, SampleType>::new();
     let reader = writer.reader();
 
     let running = Arc::new(AtomicBool::new(true));
@@ -47,7 +49,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             vibraudio_thread::MmcssValue::Audio,
         );
 
-        let mut buffer = [0i16; DefaultBackend::<i16>::FRAMES * 2];
+        let mut buffer = [SampleType::ZERO; vibraudio::platform::FRAMES * 2];
 
         while running_clone.load(Ordering::SeqCst) {
             match capture.read_frames(&mut buffer, config.channels) {
@@ -74,7 +76,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             vibraudio_thread::MmcssValue::Audio,
         );
 
-        let mut buffer = [0i16; DefaultBackend::<i16>::FRAMES * 2];
+        let mut buffer = [SampleType::ZERO; vibraudio::platform::FRAMES * 2];
 
         while running_clone2.load(Ordering::SeqCst) {
             let samples = reader.read(&mut buffer);

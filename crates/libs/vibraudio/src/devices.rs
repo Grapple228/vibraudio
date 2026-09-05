@@ -1,8 +1,10 @@
 use crate::platform::DefaultBackend;
+use std::marker::PhantomData;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread::JoinHandle;
 use std::{thread, time::Duration};
+use vibraudio_core::sample::Sample;
 use vibraudio_core::AudioConfig;
 use vibraudio_core::Backend;
 use vibraudio_core::StreamDirection;
@@ -10,27 +12,29 @@ use vibraudio_core::{Error, Result};
 use vibraudio_ringbuffer::{BufferReader, BufferWriter};
 use vibraudio_thread::{MmcssValue, Priority};
 
-pub struct Speakers {
+pub struct Speakers<S: Sample> {
     config: AudioConfig,
     handle: Option<JoinHandle<()>>,
 
     running: Arc<AtomicBool>,
+    phantom: PhantomData<S>,
 }
 
-pub const RING_SIZE: usize = DefaultBackend::<i16>::FRAMES * 2 * 4;
+pub const RING_SIZE: usize = crate::platform::FRAMES * 2 * 4;
 
-impl Speakers {
+impl<S: Sample> Speakers<S> {
     pub fn new(config: AudioConfig) -> Result<Self> {
         Ok(Self {
             handle: None,
             config,
             running: Arc::new(AtomicBool::new(false)),
+            phantom: PhantomData,
         })
     }
 
     pub fn run(
         &mut self,
-        reader: BufferReader<RING_SIZE, i16>,
+        reader: BufferReader<RING_SIZE, S>,
         priority: Priority,
         #[cfg(target_os = "windows")] mcss_value: MmcssValue,
     ) -> Result<()> {
@@ -38,7 +42,7 @@ impl Speakers {
             return Err(Error::AlreadyRunning);
         }
 
-        let backend = DefaultBackend::<i16>::open("default", StreamDirection::Playback)?;
+        let backend = DefaultBackend::<S>::open("default", StreamDirection::Playback)?;
         backend.configure(&self.config)?;
 
         let channels = self.config.channels;
@@ -51,11 +55,11 @@ impl Speakers {
                 mcss_value,
             );
 
-            let mut buffer = [0i16; DefaultBackend::<i16>::FRAMES * 2];
+            let mut buffer = [S::ZERO; crate::platform::FRAMES * 2];
 
             while running.load(Ordering::SeqCst) {
                 let samples =
-                    reader.read(&mut buffer[..DefaultBackend::<i16>::FRAMES * channels as usize]);
+                    reader.read(&mut buffer[..crate::platform::FRAMES * channels as usize]);
 
                 if samples > 0 {
                     if let Err(e) = backend.write_frames(&buffer[..samples], channels) {
@@ -82,25 +86,27 @@ impl Speakers {
     }
 }
 
-pub struct Mic {
+pub struct Mic<S: Sample> {
     config: AudioConfig,
     handle: Option<JoinHandle<()>>,
 
     running: Arc<AtomicBool>,
+    phantom: PhantomData<S>,
 }
 
-impl Mic {
+impl<S: Sample> Mic<S> {
     pub fn new(config: AudioConfig) -> Result<Self> {
         Ok(Self {
             handle: None,
             config,
             running: Arc::new(AtomicBool::new(false)),
+            phantom: PhantomData,
         })
     }
 
     pub fn run(
         &mut self,
-        writer: BufferWriter<RING_SIZE, i16>,
+        writer: BufferWriter<RING_SIZE, S>,
         priority: Priority,
         #[cfg(target_os = "windows")] mcss_value: MmcssValue,
     ) -> Result<()> {
@@ -108,7 +114,7 @@ impl Mic {
             return Err(Error::AlreadyRunning);
         }
 
-        let backend = DefaultBackend::<i16>::open("default", StreamDirection::Capture)?;
+        let backend = DefaultBackend::<S>::open("default", StreamDirection::Capture)?;
         backend.configure(&self.config)?;
 
         let channels = self.config.channels;
@@ -121,7 +127,7 @@ impl Mic {
                 mcss_value,
             );
 
-            let mut buffer = [0i16; DefaultBackend::<i16>::FRAMES * 2];
+            let mut buffer = [S::ZERO; crate::platform::FRAMES * 2];
 
             while running.load(Ordering::SeqCst) {
                 match backend.read_frames(&mut buffer, channels) {

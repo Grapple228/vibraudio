@@ -3,6 +3,7 @@ mod error;
 pub mod ffi;
 
 pub use backend::WasapiBackend;
+pub use backend::FRAMES;
 
 #[cfg(target_os = "windows")]
 #[no_mangle]

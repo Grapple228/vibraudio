@@ -26,6 +26,8 @@ fn ensure_com_initialized() {
     });
 }
 
+pub const FRAMES: usize = 512;
+
 pub struct WasapiBackend<S: Sample> {
     client: *mut IAudioClient,
     render_client: AtomicPtr<IAudioRenderClient>,
@@ -282,8 +284,6 @@ impl<S: Sample> WasapiBackend<S> {
 }
 
 impl<S: Sample> Backend<S> for WasapiBackend<S> {
-    const FRAMES: usize = 512;
-
     fn open(_name: &str, direction: StreamDirection) -> Result<Self> {
         ensure_com_initialized();
 

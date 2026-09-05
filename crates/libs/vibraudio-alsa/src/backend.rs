@@ -17,9 +17,9 @@ pub struct AlsaBackend<S: Sample> {
     _phantom: PhantomData<S>,
 }
 
-impl<S: Sample> Backend<S> for AlsaBackend<S> {
-    const FRAMES: usize = 128;
+pub const FRAMES: usize = 128;
 
+impl<S: Sample> Backend<S> for AlsaBackend<S> {
     fn open(name: &str, direction: StreamDirection) -> Result<Self> {
         let c_name = CString::new(name).map_err(|_| Error::DeviceNotFound)?;
         let mut handle: *mut ffi::SndPcm = std::ptr::null_mut();

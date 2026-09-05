@@ -6,16 +6,19 @@ pub trait Sample: Copy + Send + PartialEq + 'static {
 
     fn from_f32(value: f32) -> Self;
     fn to_f32(&self) -> f32;
-    fn silence() -> Self;
+
+    #[inline(always)]
+    fn silence() -> Self {
+        Self::ZERO
+    }
 
     /// Проверяет, является ли семпл тишиной
+    #[inline(always)]
     fn is_silence(&self) -> bool {
         Self::ZERO == *self
     }
 
-    fn sample_format() -> SampleFormat {
-        SampleFormat::S16Le
-    }
+    fn sample_format() -> SampleFormat;
 
     fn add(&self, other: Self) -> Self;
     fn mul(&self, other: Self) -> Self;
@@ -23,6 +26,11 @@ pub trait Sample: Copy + Send + PartialEq + 'static {
 
 impl Sample for i16 {
     const ZERO: Self = 0_i16;
+
+    #[inline(always)]
+    fn sample_format() -> SampleFormat {
+        SampleFormat::S16Le
+    }
 
     #[inline(always)]
     fn from_f32(value: f32) -> Self {
@@ -35,23 +43,23 @@ impl Sample for i16 {
     }
 
     #[inline(always)]
-    fn silence() -> Self {
-        0
-    }
-
-    #[inline(always)]
     fn add(&self, other: Self) -> Self {
-        *self + other
+        self.wrapping_add(other)
     }
 
     #[inline(always)]
     fn mul(&self, other: Self) -> Self {
-        *self * other
+        self.wrapping_mul(other)
     }
 }
 
 impl Sample for f32 {
     const ZERO: Self = 0.0_f32;
+
+    #[inline(always)]
+    fn sample_format() -> SampleFormat {
+        SampleFormat::FloatLe
+    }
 
     #[inline(always)]
     fn from_f32(value: f32) -> Self {
@@ -61,11 +69,6 @@ impl Sample for f32 {
     #[inline(always)]
     fn to_f32(&self) -> f32 {
         *self
-    }
-
-    #[inline(always)]
-    fn silence() -> Self {
-        0.0
     }
 
     #[inline(always)]
