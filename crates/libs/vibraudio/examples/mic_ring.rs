@@ -12,7 +12,7 @@ use vibraudio::{
     core::{AudioConfig, StreamDirection},
     platform::DefaultBackend,
 };
-use vibraudio_core::{sample::Sample, stream::StreamConfig, Backend};
+use vibraudio_core::{sample::Sample, stream::StreamConfig, Backend, Channels};
 use vibraudio_ringbuffer::BufferWriter;
 use vibraudio_thread::Priority;
 
@@ -24,7 +24,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let config = StreamConfig {
         sample_rate: 48000,
-        channels: 2,
+        channels: Channels::Stereo,
     };
 
     let capture = DefaultBackend::<SampleType>::open("default", StreamDirection::Capture)?;

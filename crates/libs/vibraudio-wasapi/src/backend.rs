@@ -7,6 +7,7 @@ use std::ptr;
 use std::sync::atomic::{AtomicPtr, Ordering};
 use std::sync::OnceLock;
 use tracing::{debug, error, info};
+use vibraudio_core::Channels;
 use vibraudio_core::{
     sample::Sample, AudioConfig, AudioFormatInfo, Backend, Error, Result, StreamDirection,
 };
@@ -207,12 +208,16 @@ impl<S: Sample> WasapiBackend<S> {
         let hr = IAudioClient_GetMixFormat(self.client, &mut mix_format);
         if hr >= 0 && !mix_format.is_null() {
             let f = &*mix_format;
-            formats.push(AudioFormatInfo::new(
-                f.nChannels,
-                f.nSamplesPerSec,
-                f.wBitsPerSample,
-                f.wFormatTag,
-            ));
+
+            if let Some(channels) = Channels::from_u16(f.nChannels) {
+                formats.push(AudioFormatInfo::new(
+                    channels,
+                    f.nSamplesPerSec,
+                    f.wBitsPerSample,
+                    f.wFormatTag,
+                ));
+            }
+
             CoTaskMemFree(mix_format as *mut c_void);
         }
 
@@ -251,21 +256,27 @@ impl<S: Sample> WasapiBackend<S> {
                 &mut closest,
             );
 
+            let Some(channels) = Channels::from_u16(ch) else {
+                continue;
+            };
+
             if hr == 0 {
-                let info = AudioFormatInfo::new(ch, rate, bits, fmt.wFormatTag);
+                let info = AudioFormatInfo::new(channels, rate, bits, fmt.wFormatTag);
                 if !formats.contains(&info) {
                     formats.push(info);
                 }
             } else if hr == 1 && !closest.is_null() {
                 let f = &*closest;
-                let info = AudioFormatInfo::new(
-                    f.nChannels,
-                    f.nSamplesPerSec,
-                    f.wBitsPerSample,
-                    f.wFormatTag,
-                );
-                if !formats.contains(&info) {
-                    formats.push(info);
+                if let Some(channels) = Channels::from_u16(f.nChannels) {
+                    let info = AudioFormatInfo::new(
+                        channels,
+                        f.nSamplesPerSec,
+                        f.wBitsPerSample,
+                        f.wFormatTag,
+                    );
+                    if !formats.contains(&info) {
+                        formats.push(info);
+                    }
                 }
                 CoTaskMemFree(closest as *mut c_void);
             }
@@ -309,10 +320,10 @@ impl<S: Sample> Backend<S> for WasapiBackend<S> {
             let bytes_per_sample = S::sample_format().bytes_per_sample() as u32;
             let requested = WAVEFORMATEX {
                 wFormatTag: if bytes_per_sample == 4 { 3 } else { 1 },
-                nChannels: config.channels,
+                nChannels: config.channels.as_u16(),
                 nSamplesPerSec: config.sample_rate,
                 nAvgBytesPerSec: config.sample_rate * config.channels as u32 * bytes_per_sample,
-                nBlockAlign: config.channels * bytes_per_sample as u16,
+                nBlockAlign: config.channels.as_u16() * bytes_per_sample as u16,
                 wBitsPerSample: (bytes_per_sample * 8) as u16,
                 cbSize: 0,
             };
@@ -414,7 +425,7 @@ impl<S: Sample> Backend<S> for WasapiBackend<S> {
     }
 
     #[inline(never)]
-    fn write_frames(&self, buffer: &[S], channels: u16) -> Result<usize> {
+    fn write_frames(&self, buffer: &[S], channels: Channels) -> Result<usize> {
         unsafe {
             let render_client = self.render_client.load(Ordering::SeqCst);
             if render_client.is_null() {
@@ -463,7 +474,7 @@ impl<S: Sample> Backend<S> for WasapiBackend<S> {
     }
 
     #[inline(never)]
-    fn read_frames(&self, buffer: &mut [S], channels: u16) -> Result<usize> {
+    fn read_frames(&self, buffer: &mut [S], channels: Channels) -> Result<usize> {
         unsafe {
             let capture_client = self.capture_client.load(Ordering::SeqCst);
             if capture_client.is_null() {

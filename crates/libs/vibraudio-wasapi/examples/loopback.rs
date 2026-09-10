@@ -10,7 +10,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let capture = WasapiBackend::<i16>::open("default", StreamDirection::Capture)?;
     let playback = WasapiBackend::<i16>::open("default", StreamDirection::Playback)?;
 
-    let config = AudioConfig::new(48000, 2, 15_000);
+    let config = AudioConfig::new(48000, vibraudio_core::Channels::Stereo, 15_000);
     playback.configure(&config).expect("playback config");
     capture.configure(&config).expect("capture config");
 

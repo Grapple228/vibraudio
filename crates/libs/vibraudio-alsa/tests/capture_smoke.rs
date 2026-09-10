@@ -13,7 +13,7 @@ fn capture_null_device() {
         }
     };
 
-    let config = AudioConfig::new(48000, 1, 20_000);
+    let config = AudioConfig::new(48000, vibraudio_core::Channels::Mono, 20_000);
     device
         .configure(&config)
         .expect("Failed to configure null capture");

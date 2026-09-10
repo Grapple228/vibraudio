@@ -1,3 +1,5 @@
+use crate::Channels;
+
 #[derive(Debug, Clone, Copy)]
 pub enum SampleFormat {
     S16Le,
@@ -17,12 +19,12 @@ impl SampleFormat {
 #[derive(Debug, Clone, Copy)]
 pub struct AudioConfig {
     pub sample_rate: u32,
-    pub channels: u16,
+    pub channels: Channels,
     pub latency: u32,
 }
 
 impl AudioConfig {
-    pub const fn new(sample_rate: u32, channels: u16, latency: u32) -> Self {
+    pub const fn new(sample_rate: u32, channels: Channels, latency: u32) -> Self {
         AudioConfig {
             sample_rate,
             channels,

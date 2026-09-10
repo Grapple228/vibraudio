@@ -1,7 +1,7 @@
 use crate::{
     format::{AudioFormatInfo, FormatSelection},
     sample::Sample,
-    AudioConfig, Result, StreamDirection,
+    AudioConfig, Channels, Result, StreamDirection,
 };
 
 pub trait Backend<S: Sample>: Sized + Send + Sync + 'static {
@@ -38,7 +38,7 @@ pub trait Backend<S: Sample>: Sized + Send + Sync + 'static {
 
         if formats.is_empty() {
             // Если список форматов не поддерживается, пробуем стандартные
-            let config = AudioConfig::new(44100, 2, selection.latency_us);
+            let config = AudioConfig::new(44100, Channels::Stereo, selection.latency_us);
             self.configure(&config)?;
             return Ok(AudioFormatInfo::from_config(&config, 16));
         }
@@ -60,8 +60,8 @@ pub trait Backend<S: Sample>: Sized + Send + Sync + 'static {
         device.supported_formats()
     }
 
-    fn write_frames(&self, buffer: &[S], channels: u16) -> Result<usize>;
-    fn read_frames(&self, buffer: &mut [S], channels: u16) -> Result<usize>;
+    fn write_frames(&self, buffer: &[S], channels: Channels) -> Result<usize>;
+    fn read_frames(&self, buffer: &mut [S], channels: Channels) -> Result<usize>;
     fn reset(&self) -> Result<()>;
     fn close(&self) -> Result<()>;
 }

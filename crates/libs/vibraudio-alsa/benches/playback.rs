@@ -8,7 +8,7 @@ fn main() {
         .expect("Failed to open null device");
 
     // Configure for standard CD-quality stereo playback
-    let config = AudioConfig::new(44100, 2, 15_000);
+    let config = AudioConfig::new(44100, vibraudio_core::Channels::Stereo, 15_000);
     device
         .configure(&config)
         .expect("Failed to configure device");
@@ -19,13 +19,15 @@ fn main() {
 
     // Warm up: let the kernel path stabilize
     for _ in 0..10 {
-        let _ = device.write_frames(&buffer, 2);
+        let _ = device.write_frames(&buffer, vibraudio_core::Channels::Stereo);
     }
 
     // Timed run: measure raw write_frames throughput
     let start = Instant::now();
     for _ in 0..iterations {
-        device.write_frames(&buffer, 2).expect("Write failed");
+        device
+            .write_frames(&buffer, vibraudio_core::Channels::Stereo)
+            .expect("Write failed");
     }
     let elapsed = start.elapsed();
 

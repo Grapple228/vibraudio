@@ -1,6 +1,6 @@
 // crates/libs/vibraudio-wasapi/tests/capture_smoke.rs
 
-use vibraudio_core::{AudioConfig, PcmDevice, StreamDirection};
+use vibraudio_core::{AudioConfig, Channels, PcmDevice, StreamDirection};
 use vibraudio_wasapi::WasapiBackend;
 
 #[test]
@@ -15,7 +15,7 @@ fn capture_default_device() {
             }
         };
 
-    let config = AudioConfig::new(44100, 1, 30_000);
+    let config = AudioConfig::new(44100, Channels::Mono, 30_000);
 
     // Конфигурация может не поддерживаться на некоторых устройствах
     if device.configure(&config).is_err() {
@@ -52,7 +52,7 @@ fn playback_default_device() {
             }
         };
 
-    let config = AudioConfig::new(44100, 2, 30_000);
+    let config = AudioConfig::new(44100, Channels::Stereo, 30_000);
 
     if device.configure(&config).is_err() {
         eprintln!("Skipping: unsupported configuration");
@@ -92,7 +92,7 @@ fn loopback_basic() {
             }
         };
 
-    let config = AudioConfig::new(44100, 2, 30_000);
+    let config = AudioConfig::new(44100, Channels::Stereo, 30_000);
 
     if capture.configure(&config).is_err() || playback.configure(&config).is_err() {
         eprintln!("Skipping: unsupported configuration");
@@ -131,10 +131,10 @@ fn multiple_configurations() {
         };
 
     let configs = [
-        AudioConfig::new(44100, 1, 30_000), // Mono CD quality
-        AudioConfig::new(44100, 2, 30_000), // Stereo CD quality
-        AudioConfig::new(48000, 1, 20_000), // Mono DVD quality
-        AudioConfig::new(48000, 2, 20_000), // Stereo DVD quality
+        AudioConfig::new(44100, Channels::Mono, 30_000), // Mono CD quality
+        AudioConfig::new(44100, Channels::Stereo, 30_000), // Stereo CD quality
+        AudioConfig::new(48000, Channels::Mono, 20_000), // Mono DVD quality
+        AudioConfig::new(48000, Channels::Stereo, 20_000), // Stereo DVD quality
     ];
 
     for config in &configs {
@@ -164,7 +164,7 @@ fn device_lifecycle() {
             }
         };
 
-        let config = AudioConfig::new(44100, 2, 30_000);
+        let config = AudioConfig::new(44100, Channels::Stereo, 30_000);
         if device.configure(&config).is_err() {
             return;
         }

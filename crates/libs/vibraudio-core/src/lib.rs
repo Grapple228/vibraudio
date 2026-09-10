@@ -1,6 +1,7 @@
 mod error;
 
 mod backend;
+mod channels;
 
 pub mod callback;
 pub mod config;
@@ -10,6 +11,7 @@ pub mod sample;
 pub mod stream;
 
 pub use backend::Backend;
+pub use channels::Channels;
 pub use config::AudioConfig;
 pub use config::SampleFormat;
 pub use device::PcmDevice;

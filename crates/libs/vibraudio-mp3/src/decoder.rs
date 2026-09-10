@@ -1,14 +1,14 @@
 use crate::ffi::{self, Mp3Dec, Mp3FrameInfo};
 use core::mem::MaybeUninit;
 use std::io::Read;
-use vibraudio_core::{Error, Result};
+use vibraudio_core::{Channels, Error, Result};
 
 pub const MP3_CHUNK_SIZE: usize = 8192;
 
 #[derive(Debug, Clone, Copy)]
 pub struct DecodeResult {
     pub samples: usize,
-    pub channels: u16,
+    pub channels: Channels,
     pub sample_rate: u32,
     pub frame_bytes: usize,
 }
@@ -45,9 +45,13 @@ impl Mp3Decoder {
             return Err(Error::DecodeFailed);
         }
 
+        let Some(channels) = Channels::from_u16(info.channels as u16) else {
+            return Err(Error::UnsupportedChannels(info.channels as u16));
+        };
+
         Ok(DecodeResult {
             samples: samples as usize,
-            channels: info.channels as u16,
+            channels,
             sample_rate: info.hz as u32,
             frame_bytes: info.frame_bytes as usize,
         })

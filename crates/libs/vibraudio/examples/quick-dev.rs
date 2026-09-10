@@ -1,4 +1,5 @@
 use vibraudio::core::AudioConfig;
+use vibraudio_core::Channels;
 use vibraudio_thread::{MmcssValue, Priority};
 
 pub type SampleType = f32;
@@ -11,7 +12,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let config = AudioConfig {
         sample_rate: 48000,
-        channels: 2,
+        channels: Channels::Stereo,
         latency: 10_000,
     };
 

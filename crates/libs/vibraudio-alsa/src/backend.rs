@@ -1,5 +1,5 @@
 use vibraudio_core::{
-    sample::Sample, AudioConfig, AudioFormatInfo, Backend, Error, Result, StreamDirection,
+    sample::Sample, AudioConfig, AudioFormatInfo, Backend, Channels, Error, Result, StreamDirection,
 };
 
 use crate::{
@@ -47,14 +47,14 @@ impl<S: Sample> Backend<S> for AlsaBackend<S> {
     fn supported_formats(&self) -> Result<Vec<AudioFormatInfo>> {
         // ALSA поддерживает практически любые форматы
         let formats = vec![
-            AudioFormatInfo::new(1, 44100, 16, 1),
-            AudioFormatInfo::new(2, 44100, 16, 1),
-            AudioFormatInfo::new(1, 48000, 16, 1),
-            AudioFormatInfo::new(2, 48000, 16, 1),
-            AudioFormatInfo::new(1, 44100, 24, 1),
-            AudioFormatInfo::new(2, 44100, 24, 1),
-            AudioFormatInfo::new(1, 48000, 24, 1),
-            AudioFormatInfo::new(2, 48000, 24, 1),
+            AudioFormatInfo::new(Channels::Mono, 44100, 16, 1),
+            AudioFormatInfo::new(Channels::Stereo, 44100, 16, 1),
+            AudioFormatInfo::new(Channels::Mono, 48000, 16, 1),
+            AudioFormatInfo::new(Channels::Stereo, 48000, 16, 1),
+            AudioFormatInfo::new(Channels::Mono, 44100, 24, 1),
+            AudioFormatInfo::new(Channels::Stereo, 44100, 24, 1),
+            AudioFormatInfo::new(Channels::Mono, 48000, 24, 1),
+            AudioFormatInfo::new(Channels::Stereo, 48000, 24, 1),
         ];
         Ok(formats)
     }
@@ -79,13 +79,13 @@ impl<S: Sample> Backend<S> for AlsaBackend<S> {
         Ok(())
     }
 
-    fn write_frames(&self, buffer: &[S], channels: u16) -> Result<usize> {
+    fn write_frames(&self, buffer: &[S], channels: Channels) -> Result<usize> {
         let frames = buffer.len() / channels as usize;
         let mut written = 0;
 
         while written < frames {
             let remaining = frames - written;
-            let offset = written * channels as usize;
+            let offset = written * channels.as_usize();
 
             let result: crate::ffi::SndPcmSframesT = unsafe {
                 crate::ffi::snd_pcm_writei(
@@ -112,7 +112,7 @@ impl<S: Sample> Backend<S> for AlsaBackend<S> {
         Ok(written)
     }
 
-    fn read_frames(&self, buffer: &mut [S], channels: u16) -> Result<usize> {
+    fn read_frames(&self, buffer: &mut [S], channels: Channels) -> Result<usize> {
         let frames = buffer.len() / channels as usize;
         let result: crate::ffi::SndPcmSframesT = unsafe {
             crate::ffi::snd_pcm_readi(

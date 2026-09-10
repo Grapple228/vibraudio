@@ -1,18 +1,23 @@
 // crates/libs/vibraudio-core/src/format.rs
 
-use crate::AudioConfig;
+use crate::{AudioConfig, Channels};
 
 /// Информация о поддерживаемом аудиоформате
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct AudioFormatInfo {
-    pub channels: u16,
+    pub channels: Channels,
     pub sample_rate: u32,
     pub bits_per_sample: u16,
     pub format_tag: u16,
 }
 
 impl AudioFormatInfo {
-    pub fn new(channels: u16, sample_rate: u32, bits_per_sample: u16, format_tag: u16) -> Self {
+    pub fn new(
+        channels: Channels,
+        sample_rate: u32,
+        bits_per_sample: u16,
+        format_tag: u16,
+    ) -> Self {
         Self {
             channels,
             sample_rate,

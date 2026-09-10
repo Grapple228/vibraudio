@@ -1,5 +1,5 @@
 use vibraudio_alsa::AlsaBackend;
-use vibraudio_core::{AudioConfig, Backend, StreamDirection};
+use vibraudio_core::{AudioConfig, Backend, Channels, StreamDirection};
 
 fn main() {
     // Open the default ALSA device for capture (microphone)
@@ -10,7 +10,7 @@ fn main() {
         .expect("Failed to open playback device");
 
     // Both devices share the same config: 48kHz, mono, signed 16-bit LE
-    let config = AudioConfig::new(48000, 1, 15_000);
+    let config = AudioConfig::new(48000, Channels::Mono, 15_000);
     capture
         .configure(&config)
         .expect("Failed to configure capture");

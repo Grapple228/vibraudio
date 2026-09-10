@@ -1,6 +1,6 @@
 use crate::backend::Backend;
 use crate::sample::Sample;
-use crate::{AudioConfig, Result};
+use crate::{AudioConfig, Channels, Result};
 use std::marker::PhantomData;
 use std::sync::Arc;
 
@@ -34,12 +34,12 @@ impl<B: Backend<S>, S: Sample> PcmDevice<B, S> {
     }
 
     #[inline(always)]
-    pub fn write_frames(&self, buffer: &[S], channels: u16) -> Result<usize> {
+    pub fn write_frames(&self, buffer: &[S], channels: Channels) -> Result<usize> {
         self.backend.write_frames(buffer, channels)
     }
 
     #[inline(always)]
-    pub fn read_frames(&self, buffer: &mut [S], channels: u16) -> Result<usize> {
+    pub fn read_frames(&self, buffer: &mut [S], channels: Channels) -> Result<usize> {
         self.backend.read_frames(buffer, channels)
     }
 

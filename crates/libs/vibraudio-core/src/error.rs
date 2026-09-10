@@ -13,6 +13,7 @@ pub enum Error {
     EndOfInput,
     DecodeFailed,
     AlreadyRunning,
+    UnsupportedChannels(u16),
 
     Ffi {
         code: c_int,
