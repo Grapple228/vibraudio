@@ -80,7 +80,7 @@ impl<S: Sample> Backend<S> for AlsaBackend<S> {
     }
 
     fn write_frames(&self, buffer: &[S], channels: Channels) -> Result<usize> {
-        let frames = buffer.len() / channels as usize;
+        let frames = buffer.len() / channels.as_usize();
         let mut written = 0;
 
         while written < frames {

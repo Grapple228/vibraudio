@@ -10,7 +10,7 @@ use vibraudio_core::Backend;
 use vibraudio_core::StreamDirection;
 use vibraudio_core::{Error, Result};
 use vibraudio_ringbuffer::{BufferReader, BufferWriter};
-use vibraudio_thread::{MmcssValue, Priority};
+use vibraudio_thread::Priority;
 
 pub struct Speakers<S: Sample> {
     config: AudioConfig,
@@ -36,7 +36,7 @@ impl<S: Sample> Speakers<S> {
         &mut self,
         reader: BufferReader<SIZE, S>,
         priority: Priority,
-        #[cfg(target_os = "windows")] mcss_value: MmcssValue,
+        #[cfg(target_os = "windows")] mcss_value: vibraudio_thread::MmcssValue,
     ) -> Result<()> {
         if self.running.load(Ordering::SeqCst) {
             return Err(Error::AlreadyRunning);

@@ -137,6 +137,7 @@ pub fn enable_mmcss(mmcss_value: MmcssValue) -> Option<MmcssHandle> {
     }
 }
 
+#[allow(unused)]
 pub fn set_thread_priority(priority: Priority) {
     #[cfg(target_os = "windows")]
     unsafe {
