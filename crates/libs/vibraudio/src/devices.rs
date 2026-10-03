@@ -108,7 +108,7 @@ impl<S: Sample> Mic<S> {
         &mut self,
         writer: BufferWriter<SIZE, S>,
         priority: Priority,
-        #[cfg(target_os = "windows")] mcss_value: MmcssValue,
+        #[cfg(target_os = "windows")] mcss_value: vibraudio_thread::MmcssValue,
     ) -> Result<()> {
         if self.running.load(Ordering::SeqCst) {
             return Err(Error::AlreadyRunning);
