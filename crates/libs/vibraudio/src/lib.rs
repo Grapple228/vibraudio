@@ -4,6 +4,7 @@ pub mod core {
 }
 
 #[doc = "hidden"]
+#[cfg(feature = "mp3")]
 pub mod mp3 {
     pub use vibraudio_mp3::*;
 }

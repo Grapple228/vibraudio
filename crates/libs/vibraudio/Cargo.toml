@@ -13,6 +13,8 @@ name = "play"
 path = "examples/play.rs"
 
 [features]
+default = []
+mp3 = []
 
 [lib]
 doctest = false
