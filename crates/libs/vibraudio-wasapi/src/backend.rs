@@ -4,12 +4,12 @@ use crate::ffi::*;
 use std::ffi::c_void;
 use std::marker::PhantomData;
 use std::ptr;
-use std::sync::atomic::{AtomicPtr, Ordering};
 use std::sync::OnceLock;
+use std::sync::atomic::{AtomicPtr, Ordering};
 use tracing::{debug, error, info};
 use vibraudio_core::Channels;
 use vibraudio_core::{
-    sample::Sample, AudioConfig, AudioFormatInfo, Backend, Error, Result, StreamDirection,
+    AudioConfig, AudioFormatInfo, Backend, Error, Result, StreamDirection, sample::Sample,
 };
 
 const COINIT_MULTITHREADED: u32 = 0x0;
@@ -61,13 +61,15 @@ impl<S: Sample> WasapiBackend<S> {
 
     unsafe fn get_default_device(direction: StreamDirection) -> Result<*mut IMMDevice> {
         let mut enumerator: *mut IMMDeviceEnumerator = ptr::null_mut();
-        let hr = CoCreateInstance(
-            &CLSID_MMDeviceEnumerator,
-            ptr::null_mut(),
-            CLSCTX_INPROC_SERVER,
-            &IID_IMMDeviceEnumerator,
-            &mut enumerator as *mut *mut _ as *mut *mut c_void,
-        );
+        let hr = unsafe {
+            CoCreateInstance(
+                &CLSID_MMDeviceEnumerator,
+                ptr::null_mut(),
+                CLSCTX_INPROC_SERVER,
+                &IID_IMMDeviceEnumerator,
+                &mut enumerator as *mut *mut _ as *mut *mut c_void,
+            )
+        };
 
         if hr < 0 || enumerator.is_null() {
             error!("Failed to create MMDeviceEnumerator: {}", hr);
@@ -80,14 +82,16 @@ impl<S: Sample> WasapiBackend<S> {
             StreamDirection::Capture => EDataFlow::eCapture,
         };
 
-        let hr = IMMDeviceEnumerator_GetDefaultAudioEndpoint(
-            enumerator,
-            flow,
-            ERole::eConsole,
-            &mut device,
-        );
+        let hr = unsafe {
+            IMMDeviceEnumerator_GetDefaultAudioEndpoint(
+                enumerator,
+                flow,
+                ERole::eConsole,
+                &mut device,
+            )
+        };
 
-        com_release(enumerator as *mut c_void);
+        unsafe { com_release(enumerator as *mut c_void) };
 
         if hr < 0 || device.is_null() {
             error!("Failed to get default audio endpoint: {}", hr);
@@ -103,13 +107,15 @@ impl<S: Sample> WasapiBackend<S> {
         }
 
         let mut client: *mut IAudioClient = ptr::null_mut();
-        let hr = IMMDevice_Activate(
-            device,
-            &IID_IAudioClient,
-            CLSCTX_INPROC_SERVER,
-            ptr::null_mut(),
-            &mut client as *mut *mut _ as *mut *mut c_void,
-        );
+        let hr = unsafe {
+            IMMDevice_Activate(
+                device,
+                &IID_IAudioClient,
+                CLSCTX_INPROC_SERVER,
+                ptr::null_mut(),
+                &mut client as *mut *mut _ as *mut *mut c_void,
+            )
+        };
 
         if hr < 0 || client.is_null() {
             error!("Failed to activate audio client: {}", hr);
@@ -126,20 +132,22 @@ impl<S: Sample> WasapiBackend<S> {
 
         // Try exact format first
         let mut closest: *mut WAVEFORMATEX = ptr::null_mut();
-        let hr = IAudioClient_IsFormatSupported(
-            self.client,
-            AUDCLNT_SHAREMODE_SHARED,
-            requested,
-            &mut closest,
-        );
+        let hr = unsafe {
+            IAudioClient_IsFormatSupported(
+                self.client,
+                AUDCLNT_SHAREMODE_SHARED,
+                requested,
+                &mut closest,
+            )
+        };
 
         if hr == 0 {
             // Exact match
             return Ok(requested.clone());
         } else if hr == 1 && !closest.is_null() {
             // Closest match available
-            let format = (*closest).clone();
-            CoTaskMemFree(closest as *mut c_void);
+            let format = (unsafe { *closest }).clone();
+            unsafe { CoTaskMemFree(closest as *mut c_void) };
             return Ok(format);
         }
 
@@ -168,28 +176,30 @@ impl<S: Sample> WasapiBackend<S> {
             };
 
             let mut closest_match: *mut WAVEFORMATEX = ptr::null_mut();
-            let hr = IAudioClient_IsFormatSupported(
-                self.client,
-                AUDCLNT_SHAREMODE_SHARED,
-                &test_format,
-                &mut closest_match,
-            );
+            let hr = unsafe {
+                IAudioClient_IsFormatSupported(
+                    self.client,
+                    AUDCLNT_SHAREMODE_SHARED,
+                    &test_format,
+                    &mut closest_match,
+                )
+            };
 
             if hr == 0 {
                 return Ok(test_format);
             } else if hr == 1 && !closest_match.is_null() {
-                let format = (*closest_match).clone();
-                CoTaskMemFree(closest_match as *mut c_void);
+                let format = (unsafe { *closest_match }).clone();
+                unsafe { CoTaskMemFree(closest_match as *mut c_void) };
                 return Ok(format);
             }
         }
 
         // Fallback to mix format
         let mut mix_format: *mut WAVEFORMATEX = ptr::null_mut();
-        let hr = IAudioClient_GetMixFormat(self.client, &mut mix_format);
+        let hr = unsafe { IAudioClient_GetMixFormat(self.client, &mut mix_format) };
         if hr >= 0 && !mix_format.is_null() {
-            let format = (*mix_format).clone();
-            CoTaskMemFree(mix_format as *mut c_void);
+            let format = (unsafe { *mix_format }).clone();
+            unsafe { CoTaskMemFree(mix_format as *mut c_void) };
             return Ok(format);
         }
 
@@ -205,9 +215,9 @@ impl<S: Sample> WasapiBackend<S> {
 
         // Get mix format
         let mut mix_format: *mut WAVEFORMATEX = ptr::null_mut();
-        let hr = IAudioClient_GetMixFormat(self.client, &mut mix_format);
+        let hr = unsafe { IAudioClient_GetMixFormat(self.client, &mut mix_format) };
         if hr >= 0 && !mix_format.is_null() {
-            let f = &*mix_format;
+            let f = unsafe { &*mix_format };
 
             if let Some(channels) = Channels::from_u16(f.nChannels) {
                 formats.push(AudioFormatInfo::new(
@@ -218,7 +228,7 @@ impl<S: Sample> WasapiBackend<S> {
                 ));
             }
 
-            CoTaskMemFree(mix_format as *mut c_void);
+            unsafe { CoTaskMemFree(mix_format as *mut c_void) };
         }
 
         // Test common formats
@@ -249,12 +259,14 @@ impl<S: Sample> WasapiBackend<S> {
             };
 
             let mut closest: *mut WAVEFORMATEX = ptr::null_mut();
-            let hr = IAudioClient_IsFormatSupported(
-                self.client,
-                AUDCLNT_SHAREMODE_SHARED,
-                &fmt,
-                &mut closest,
-            );
+            let hr = unsafe {
+                IAudioClient_IsFormatSupported(
+                    self.client,
+                    AUDCLNT_SHAREMODE_SHARED,
+                    &fmt,
+                    &mut closest,
+                )
+            };
 
             let Some(channels) = Channels::from_u16(ch) else {
                 continue;
@@ -266,7 +278,7 @@ impl<S: Sample> WasapiBackend<S> {
                     formats.push(info);
                 }
             } else if hr == 1 && !closest.is_null() {
-                let f = &*closest;
+                let f = unsafe { &*closest };
                 if let Some(channels) = Channels::from_u16(f.nChannels) {
                     let info = AudioFormatInfo::new(
                         channels,
@@ -278,7 +290,7 @@ impl<S: Sample> WasapiBackend<S> {
                         formats.push(info);
                     }
                 }
-                CoTaskMemFree(closest as *mut c_void);
+                unsafe { CoTaskMemFree(closest as *mut c_void) };
             }
         }
 

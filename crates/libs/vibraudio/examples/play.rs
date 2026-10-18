@@ -6,11 +6,17 @@
 // - Period: A chunk of frames transferred to hardware at once (the ring buffer unit).
 // - Underrun (XRUN): When the application fails to provide data fast enough.
 
-use vibraudio::platform::DefaultBackend;
-use vibraudio_core::{AudioConfig, Backend, Error, StreamDirection};
-use vibraudio_mp3::{decoder::Mp3Decoder, ffi::MINIMP3_MAX_SAMPLES_PER_FRAME};
-
+#[cfg(not(feature = "mp3"))]
 fn main() {
+    panic!("enable `mp3` feature for this example")
+}
+
+#[cfg(feature = "mp3")]
+fn main() {
+    use vibraudio::platform::DefaultBackend;
+    use vibraudio_core::{AudioConfig, Backend, Error, StreamDirection};
+    use vibraudio_mp3::{decoder::Mp3Decoder, ffi::MINIMP3_MAX_SAMPLES_PER_FRAME};
+
     _ = vibraudio_core::init();
 
     // Require the user to pass an MP3 file path as an argument

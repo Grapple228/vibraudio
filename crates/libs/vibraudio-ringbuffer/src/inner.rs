@@ -50,7 +50,7 @@ impl<const N: usize, S: Sample> RingBufferInner<N, S> {
         }
 
         let data_ptr = self.data.get() as *const S;
-        let data_slice = std::slice::from_raw_parts(data_ptr, N);
+        let data_slice = unsafe { std::slice::from_raw_parts(data_ptr, N) };
 
         if write > read {
             (&data_slice[read..write], &[])
@@ -79,7 +79,7 @@ impl<const N: usize, S: Sample> RingBufferInner<N, S> {
         }
 
         let data_ptr = self.data.get() as *mut S;
-        let data_slice = std::slice::from_raw_parts_mut(data_ptr, N);
+        let data_slice = unsafe { std::slice::from_raw_parts_mut(data_ptr, N) };
 
         if write >= read {
             // Свободное место: [write..N) + [0..read)
@@ -118,7 +118,7 @@ impl<const N: usize, S: Sample> RingBufferInner<N, S> {
 
     /// Читает данные в dst
     pub unsafe fn read_data(&self, dst: &mut [S]) -> usize {
-        let (first, second) = self.as_slices();
+        let (first, second) = unsafe { self.as_slices() };
         let to_read = dst.len().min(first.len() + second.len());
 
         if to_read == 0 {
@@ -133,13 +133,13 @@ impl<const N: usize, S: Sample> RingBufferInner<N, S> {
             dst[first_len..to_read].copy_from_slice(&second[..remaining]);
         }
 
-        self.advance_read(to_read);
+        unsafe { self.advance_read(to_read) };
         to_read
     }
 
     /// Читает данные и добавляет их к dst
     pub unsafe fn read_add_data(&self, dst: &mut [S], volume: S) -> usize {
-        let (first, second) = self.as_slices();
+        let (first, second) = unsafe { self.as_slices() };
         let to_read = dst.len().min(first.len() + second.len());
 
         if to_read == 0 {
@@ -158,13 +158,13 @@ impl<const N: usize, S: Sample> RingBufferInner<N, S> {
             }
         }
 
-        self.advance_read(to_read);
+        unsafe { self.advance_read(to_read) };
         to_read
     }
 
     /// Записывает данные из src
     pub unsafe fn write_data(&self, src: &[S]) -> usize {
-        let (first, second) = self.as_slices_mut();
+        let (first, second) = unsafe { self.as_slices_mut() };
 
         let mut written = 0;
 
@@ -180,7 +180,7 @@ impl<const N: usize, S: Sample> RingBufferInner<N, S> {
             written += second_len;
         }
 
-        self.advance_write(written);
+        unsafe { self.advance_write(written) };
         written
     }
 }

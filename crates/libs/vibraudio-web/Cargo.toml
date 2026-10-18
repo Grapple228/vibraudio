@@ -1,0 +1,58 @@
+[package]
+name = "vibraudio-web"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+authors.workspace = true
+description.workspace = true
+repository.workspace = true
+readme.workspace = true
+
+[profile.release]
+opt-level = 1
+lto = false
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+# -- App Libs
+vibraudio-core = { path = "../../libs/vibraudio-core" }
+# -- Tracing
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+# -- Others
+derive_more = { workspace = true }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
+web-sys = { version = "0.3", features = [
+    # Базовые DOM-типы
+    "Window", "Document", "HtmlCanvasElement", "Navigator",
+
+    # AudioContext и состояния
+    "AudioContext", "AudioContextState",
+
+    # AudioWorklet
+    "AudioWorklet", "AudioWorkletNode",
+
+    # Связка узлов и порт
+    "AudioNode", "AudioDestinationNode", "MessagePort", "MessageEvent",
+
+    # Громкость (нужна для create_gain)
+    "GainNode", "AudioParam",
+
+    # Микрофон: getUserMedia -> MediaStream -> SourceNode
+    "MediaDevices", "MediaStream", "MediaStreamConstraints",
+    "MediaStreamAudioSourceNode",
+] }
+
+[dev-dependencies]
+anyhow = { workspace = true }
+
+[build-dependencies]

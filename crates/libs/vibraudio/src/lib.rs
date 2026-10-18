@@ -31,6 +31,11 @@ pub mod backend {
     pub mod wasapi {
         pub use vibraudio_wasapi::*;
     }
+
+    #[cfg(target_arch = "wasm32")]
+    pub mod web {
+        pub use vibraudio_web::*;
+    }
 }
 
 pub mod platform {
@@ -46,9 +51,11 @@ pub mod platform {
     #[cfg(target_os = "windows")]
     pub use vibraudio_wasapi::FRAMES;
 
-    #[cfg(not(any(target_os = "linux", target_os = "windows")))]
-    compile_error!("Unsupported platform");
+    #[cfg(target_arch = "wasm32")]
+    pub type DefaultBackend<S> = vibraudio_web::WebBackend<S>;
+    #[cfg(target_arch = "wasm32")]
+    pub use vibraudio_web::FRAMES;
 }
 
-#[cfg(not(any(target_os = "linux", target_os = "windows")))]
-compile_error!("vibraudio currently supports only Linux and Windows");
+#[cfg(not(any(target_os = "linux", target_os = "windows", target_arch = "wasm32")))]
+compile_error!("vibraudio currently supports only Linux, Windows and wasm32");

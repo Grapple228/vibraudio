@@ -30,4 +30,3 @@ derive_more = { workspace = true }
 anyhow = { workspace = true }
 
 [build-dependencies]
-cc = "1.2"

@@ -1,14 +1,21 @@
 // ./crates/libs/vibraudio/examples/play_stream.rs
-use std::{fs::File, io::BufReader, time::Instant};
-use vibraudio::{
-    core::{AudioConfig, StreamDirection},
-    mp3::decoder::Mp3StreamDecoder,
-    platform::DefaultBackend,
-};
-use vibraudio_core::{Backend, Error};
-use vibraudio_mp3::ffi::MINIMP3_MAX_SAMPLES_PER_FRAME;
 
+#[cfg(not(feature = "mp3"))]
+fn main() {
+    panic!("enable `mp3` feature for this example")
+}
+
+#[cfg(feature = "mp3")]
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    use std::{fs::File, io::BufReader, time::Instant};
+    use vibraudio::{
+        core::{AudioConfig, StreamDirection},
+        mp3::decoder::Mp3StreamDecoder,
+        platform::DefaultBackend,
+    };
+    use vibraudio_core::{Backend, Error};
+    use vibraudio_mp3::ffi::MINIMP3_MAX_SAMPLES_PER_FRAME;
+
     let args: Vec<String> = std::env::args().collect();
     if args.len() < 2 {
         eprintln!("Usage: play_stream <path-to-mp3>");

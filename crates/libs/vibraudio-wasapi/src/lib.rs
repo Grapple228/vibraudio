@@ -2,11 +2,11 @@ mod backend;
 mod error;
 pub mod ffi;
 
-pub use backend::WasapiBackend;
 pub use backend::FRAMES;
+pub use backend::WasapiBackend;
 
 #[cfg(target_os = "windows")]
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "system" fn DllMain(
     _hinst: *mut std::ffi::c_void,
     _reason: u32,

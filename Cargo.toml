@@ -1,6 +1,6 @@
 [workspace.package]
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 license = "MIT"
 description = ""
 authors = ["grapple228 <greenapple228882@yandex.ru>"]
@@ -19,7 +19,7 @@ strip = true
 # unused = { level = "allow", priority = -1 } # For exploratory dev.
 
 [workspace]
-resolver = "2"
+resolver = "3"
 members = [
     # -- Application Libraries
     "crates/libs/vibraudio",
@@ -28,6 +28,7 @@ members = [
     "crates/libs/vibraudio-ringbuffer",
     "crates/libs/vibraudio-alsa",
     "crates/libs/vibraudio-wasapi",
+    "crates/libs/vibraudio-web",
     "crates/libs/vibraudio-mp3",
 ]
 
