@@ -21,6 +21,7 @@ workspace = true
 [dependencies]
 # -- App Libs
 vibraudio-core = { path = "../../libs/vibraudio-core" }
+vibraudio-ringbuffer = { path = "../../libs/vibraudio-ringbuffer" }
 # -- Tracing
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
@@ -36,10 +37,10 @@ web-sys = { version = "0.3", features = [
     "Window", "Document", "HtmlCanvasElement", "Navigator",
 
     # AudioContext и состояния
-    "AudioContext", "AudioContextState",
+    "AudioContext", "AudioContextState", "AudioContextOptions",
 
     # AudioWorklet
-    "AudioWorklet", "AudioWorkletNode",
+    "AudioWorklet", "AudioWorkletNode", "AudioWorkletNodeOptions",
 
     # Связка узлов и порт
     "AudioNode", "AudioDestinationNode", "MessagePort", "MessageEvent",

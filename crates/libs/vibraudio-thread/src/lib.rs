@@ -1,3 +1,11 @@
+pub mod thread {
+    #[cfg(target_arch = "wasm32")]
+    pub use wasm_thread::*;
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub use std::thread::*;
+}
+
 #[derive(Clone, Copy)]
 pub enum Priority {
     Critical,

@@ -29,6 +29,8 @@ vibraudio-ringbuffer = { path = "../../libs/vibraudio-ringbuffer" }
 vibraudio-mp3 = { path = "../../libs/vibraudio-mp3", optional = true }
 vibraudio-thread = { path = "../../libs/vibraudio-thread" }
 
+
+
 # -- Tracing
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
@@ -43,6 +45,7 @@ vibraudio-wasapi = { path = "../../libs/vibraudio-wasapi" }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 vibraudio-web = { path = "../../libs/vibraudio-web" }
+tokio_with_wasm = { version = "0.10.1", features = ["macros", "sync", "time", "rt", "rt-multi-thread", "io-util", "fs"] }
 
 [dev-dependencies]
 anyhow = { workspace = true }

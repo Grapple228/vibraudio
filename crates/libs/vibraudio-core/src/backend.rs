@@ -1,12 +1,23 @@
 use crate::{
+    AudioConfig, Channels, Result, StreamDirection,
     format::{AudioFormatInfo, FormatSelection},
     sample::Sample,
-    AudioConfig, Channels, Result, StreamDirection,
 };
 
 pub trait Backend<S: Sample>: Sized + Send + Sync + 'static {
+    /// Асинхронная версия `open`.
+    /// По умолчанию вызывает `open`, переопределяется на wasm.
+    #[allow(async_fn_in_trait)]
+    async fn open_async(name: &str, direction: StreamDirection) -> Result<Self> {
+        Self::open(name, direction)
+    }
+
     fn open(name: &str, direction: StreamDirection) -> Result<Self>;
     fn configure(&self, config: &AudioConfig) -> Result<()>;
+    #[allow(async_fn_in_trait)]
+    async fn configure_async(&self, config: &AudioConfig) -> Result<()> {
+        self.configure(config)
+    }
     fn supported_formats(&self) -> Result<Vec<AudioFormatInfo>> {
         // По умолчанию возвращаем пустой список
         Ok(Vec::new())
