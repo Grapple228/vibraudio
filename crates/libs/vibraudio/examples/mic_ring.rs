@@ -33,8 +33,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         channels: Channels::Stereo,
     };
 
-    let capture = DefaultBackend::<SampleType>::open("default", StreamDirection::Capture)?;
-    let playback = DefaultBackend::<SampleType>::open("default", StreamDirection::Playback)?;
+    let mut capture = DefaultBackend::<SampleType>::open("default", StreamDirection::Capture)?;
+    let mut playback = DefaultBackend::<SampleType>::open("default", StreamDirection::Playback)?;
 
     let audio_config = AudioConfig::new(config.sample_rate, config.channels, 10_000);
     capture.configure(&audio_config)?;

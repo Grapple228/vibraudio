@@ -1,9 +1,12 @@
 // crates/libs/vibraudio-wasapi/tests/capture_smoke.rs
 
+#[cfg(windows)]
 use vibraudio_core::{AudioConfig, Channels, PcmDevice, StreamDirection};
+#[cfg(windows)]
 use vibraudio_wasapi::WasapiBackend;
 
 #[test]
+#[cfg(windows)]
 fn capture_default_device() {
     // Пытаемся открыть устройство захвата по умолчанию
     let mut device =
@@ -42,6 +45,7 @@ fn capture_default_device() {
 }
 
 #[test]
+#[cfg(windows)]
 fn playback_default_device() {
     let mut device =
         match PcmDevice::<WasapiBackend<i16>, i16>::open("default", StreamDirection::Playback) {
@@ -72,6 +76,7 @@ fn playback_default_device() {
 }
 
 #[test]
+#[cfg(windows)]
 fn loopback_basic() {
     // Тест базового лупбека (mic -> speakers)
     let mut capture =
@@ -119,6 +124,7 @@ fn loopback_basic() {
 }
 
 #[test]
+#[cfg(windows)]
 fn multiple_configurations() {
     // Тестируем разные конфигурации
     let mut device =
@@ -150,6 +156,7 @@ fn multiple_configurations() {
 }
 
 #[test]
+#[cfg(windows)]
 fn device_lifecycle() {
     // Тест жизненного цикла устройства
     {

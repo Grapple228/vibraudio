@@ -26,7 +26,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let reader = BufReader::new(file);
     let mut decoder = Mp3StreamDecoder::new(reader);
 
-    let device = DefaultBackend::<i16>::open("default", StreamDirection::Playback)?;
+    let mut device = DefaultBackend::<i16>::open("default", StreamDirection::Playback)?;
 
     let mut pcm_buffer = [0i16; MINIMP3_MAX_SAMPLES_PER_FRAME];
     let mut configured = false;

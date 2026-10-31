@@ -1,7 +1,13 @@
-use vibraudio_alsa::AlsaBackend;
-use vibraudio_core::{AudioConfig, Backend, Channels, StreamDirection};
-
+#[cfg(not(target_os = "linux"))]
 fn main() {
+    panic!("this example only works on linux target");
+}
+
+#[cfg(target_os = "linux")]
+fn main() {
+    use vibraudio_alsa::AlsaBackend;
+    use vibraudio_core::{AudioConfig, Backend, Channels, StreamDirection};
+
     // Open the default ALSA device for capture (microphone)
     let mut capture = AlsaBackend::<i16>::open("default", StreamDirection::Capture)
         .expect("Failed to open capture device");

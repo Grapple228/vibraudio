@@ -1,7 +1,10 @@
+#[cfg(target_os = "linux")]
 use vibraudio_alsa::AlsaBackend;
+#[cfg(target_os = "linux")]
 use vibraudio_core::{AudioConfig, PcmDevice, StreamDirection};
 
 #[test]
+#[cfg(target_os = "linux")]
 fn capture_null_device() {
     // Open the null device for capture - discards/generates silence
     let mut device =
