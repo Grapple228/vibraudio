@@ -6,7 +6,7 @@ use vibraudio_wasapi::WasapiBackend;
 #[test]
 fn capture_default_device() {
     // Пытаемся открыть устройство захвата по умолчанию
-    let device =
+    let mut device =
         match PcmDevice::<WasapiBackend<i16>, i16>::open("default", StreamDirection::Capture) {
             Ok(d) => d,
             Err(_) => {
@@ -43,7 +43,7 @@ fn capture_default_device() {
 
 #[test]
 fn playback_default_device() {
-    let device =
+    let mut device =
         match PcmDevice::<WasapiBackend<i16>, i16>::open("default", StreamDirection::Playback) {
             Ok(d) => d,
             Err(_) => {
@@ -74,7 +74,7 @@ fn playback_default_device() {
 #[test]
 fn loopback_basic() {
     // Тест базового лупбека (mic -> speakers)
-    let capture =
+    let mut capture =
         match PcmDevice::<WasapiBackend<i16>, i16>::open("default", StreamDirection::Capture) {
             Ok(d) => d,
             Err(_) => {
@@ -83,7 +83,7 @@ fn loopback_basic() {
             }
         };
 
-    let playback =
+    let mut playback =
         match PcmDevice::<WasapiBackend<i16>, i16>::open("default", StreamDirection::Playback) {
             Ok(d) => d,
             Err(_) => {
@@ -121,7 +121,7 @@ fn loopback_basic() {
 #[test]
 fn multiple_configurations() {
     // Тестируем разные конфигурации
-    let device =
+    let mut device =
         match PcmDevice::<WasapiBackend<i16>, i16>::open("default", StreamDirection::Playback) {
             Ok(d) => d,
             Err(_) => {
@@ -153,7 +153,7 @@ fn multiple_configurations() {
 fn device_lifecycle() {
     // Тест жизненного цикла устройства
     {
-        let device = match PcmDevice::<WasapiBackend<i16>, i16>::open(
+        let mut device = match PcmDevice::<WasapiBackend<i16>, i16>::open(
             "default",
             StreamDirection::Playback,
         ) {

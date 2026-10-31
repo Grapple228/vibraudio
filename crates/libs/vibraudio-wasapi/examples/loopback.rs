@@ -7,8 +7,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("🎤 WASAPI Loopback: Microphone -> Speakers");
     println!("==========================================");
 
-    let capture = WasapiBackend::<i16>::open("default", StreamDirection::Capture)?;
-    let playback = WasapiBackend::<i16>::open("default", StreamDirection::Playback)?;
+    let mut capture = WasapiBackend::<i16>::open("default", StreamDirection::Capture)?;
+    let mut playback = WasapiBackend::<i16>::open("default", StreamDirection::Playback)?;
 
     let config = AudioConfig::new(48000, vibraudio_core::Channels::Stereo, 15_000);
     playback.configure(&config).expect("playback config");

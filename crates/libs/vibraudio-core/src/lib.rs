@@ -10,7 +10,7 @@ pub mod format;
 pub mod sample;
 pub mod stream;
 
-pub use backend::Backend;
+pub use backend::{Backend, BackendAsync};
 pub use channels::Channels;
 pub use config::AudioConfig;
 pub use config::SampleFormat;

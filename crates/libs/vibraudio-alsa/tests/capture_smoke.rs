@@ -4,14 +4,15 @@ use vibraudio_core::{AudioConfig, PcmDevice, StreamDirection};
 #[test]
 fn capture_null_device() {
     // Open the null device for capture - discards/generates silence
-    let device = match PcmDevice::<AlsaBackend<i16>, i16>::open("null", StreamDirection::Capture) {
-        Ok(d) => d,
-        Err(_) => {
-            // null capture may not be available on all ALSA configs
-            eprintln!("Skipping: null capture device not available");
-            return;
-        }
-    };
+    let mut device =
+        match PcmDevice::<AlsaBackend<i16>, i16>::open("null", StreamDirection::Capture) {
+            Ok(d) => d,
+            Err(_) => {
+                // null capture may not be available on all ALSA configs
+                eprintln!("Skipping: null capture device not available");
+                return;
+            }
+        };
 
     let config = AudioConfig::new(48000, vibraudio_core::Channels::Mono, 20_000);
     device

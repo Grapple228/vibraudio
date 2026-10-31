@@ -322,7 +322,7 @@ impl<S: Sample> Backend<S> for WasapiBackend<S> {
         Ok(backend)
     }
 
-    fn configure(&self, config: &AudioConfig) -> Result<()> {
+    fn configure(&mut self, config: &AudioConfig) -> Result<()> {
         unsafe {
             if self.client.is_null() {
                 return Err(Error::InvalidConfig);
@@ -431,13 +431,13 @@ impl<S: Sample> Backend<S> for WasapiBackend<S> {
         unsafe { self.enumerate_formats() }
     }
 
-    fn configure_with_format(&self, format: &AudioFormatInfo, latency_us: u32) -> Result<()> {
+    fn configure_with_format(&mut self, format: &AudioFormatInfo, latency_us: u32) -> Result<()> {
         let config = AudioConfig::new(format.sample_rate, format.channels, latency_us);
         self.configure(&config)
     }
 
     #[inline(never)]
-    fn write_frames(&self, buffer: &[S], channels: Channels) -> Result<usize> {
+    fn write_frames(&mut self, buffer: &[S], channels: Channels) -> Result<usize> {
         unsafe {
             let render_client = self.render_client.load(Ordering::SeqCst);
             if render_client.is_null() {
@@ -527,7 +527,7 @@ impl<S: Sample> Backend<S> for WasapiBackend<S> {
         }
     }
 
-    fn reset(&self) -> Result<()> {
+    fn reset(&mut self) -> Result<()> {
         unsafe {
             if !self.client.is_null() {
                 let hr = IAudioClient_Reset(self.client);
@@ -539,7 +539,7 @@ impl<S: Sample> Backend<S> for WasapiBackend<S> {
         Ok(())
     }
 
-    fn close(&self) -> Result<()> {
+    fn close(&mut self) -> Result<()> {
         unsafe {
             if !self.client.is_null() {
                 let hr = IAudioClient_Stop(self.client);

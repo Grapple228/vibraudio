@@ -1,11 +1,16 @@
-use vibraudio::core::AudioConfig;
-use vibraudio_core::Channels;
-use vibraudio_thread::Priority;
-
 pub type SampleType = i16;
 
+#[cfg(target_arch = "wasm32")]
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    panic!("Shoud be native platform")
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    use vibraudio::core::AudioConfig;
     use vibraudio::devices::{Mic, Speakers};
+    use vibraudio_core::Channels;
+    use vibraudio_thread::Priority;
 
     println!("🎤 Loopback: Микрофон → Буфер → Колонки");
     println!("====================================================");

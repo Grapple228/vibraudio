@@ -4,32 +4,37 @@ use crate::{
     sample::Sample,
 };
 
-pub trait Backend<S: Sample>: Sized + Send + Sync + 'static {
-    /// Асинхронная версия `open`.
-    /// По умолчанию вызывает `open`, переопределяется на wasm.
-    #[allow(async_fn_in_trait)]
+#[allow(async_fn_in_trait)]
+pub trait BackendAsync<S: Sample>: Backend<S> {
     async fn open_async(name: &str, direction: StreamDirection) -> Result<Self> {
         Self::open(name, direction)
     }
 
-    fn open(name: &str, direction: StreamDirection) -> Result<Self>;
-    fn configure(&self, config: &AudioConfig) -> Result<()>;
-    #[allow(async_fn_in_trait)]
-    async fn configure_async(&self, config: &AudioConfig) -> Result<()> {
+    async fn configure_async(&mut self, config: &AudioConfig) -> Result<()> {
         self.configure(config)
     }
+
+    async fn close_async(&mut self) -> Result<()> {
+        self.close()
+    }
+}
+
+pub trait Backend<S: Sample>: Sized + Send + 'static {
+    fn open(name: &str, direction: StreamDirection) -> Result<Self>;
+    fn configure(&mut self, config: &AudioConfig) -> Result<()>;
+
     fn supported_formats(&self) -> Result<Vec<AudioFormatInfo>> {
         // По умолчанию возвращаем пустой список
         Ok(Vec::new())
     }
 
-    fn configure_with_format(&self, format: &AudioFormatInfo, latency_us: u32) -> Result<()> {
+    fn configure_with_format(&mut self, format: &AudioFormatInfo, latency_us: u32) -> Result<()> {
         // По умолчанию используем старый метод
         let config = format.to_config(latency_us);
         self.configure(&config)
     }
 
-    fn configure_smart(&self, selection: &FormatSelection) -> Result<AudioFormatInfo> {
+    fn configure_smart(&mut self, selection: &FormatSelection) -> Result<AudioFormatInfo> {
         if let Some(preferred) = &selection.preferred {
             if !selection.auto_select {
                 // Пробуем exact формат
@@ -71,10 +76,10 @@ pub trait Backend<S: Sample>: Sized + Send + Sync + 'static {
         device.supported_formats()
     }
 
-    fn write_frames(&self, buffer: &[S], channels: Channels) -> Result<usize>;
+    fn write_frames(&mut self, buffer: &[S], channels: Channels) -> Result<usize>;
     fn read_frames(&self, buffer: &mut [S], channels: Channels) -> Result<usize>;
-    fn reset(&self) -> Result<()>;
-    fn close(&self) -> Result<()>;
+    fn reset(&mut self) -> Result<()>;
+    fn close(&mut self) -> Result<()>;
 }
 
 fn find_best_match(available: &[AudioFormatInfo], preferred: &AudioFormatInfo) -> AudioFormatInfo {

@@ -2,7 +2,6 @@ use crate::backend::Backend;
 use crate::sample::Sample;
 use crate::{AudioConfig, Channels, Result};
 use std::marker::PhantomData;
-use std::sync::Arc;
 
 #[derive(Debug, Clone, Copy)]
 pub enum StreamDirection {
@@ -14,7 +13,7 @@ pub struct PcmDevice<B: Backend<S>, S>
 where
     S: Sample,
 {
-    backend: Arc<B>,
+    backend: B,
     _phantom: PhantomData<S>,
 }
 
@@ -23,18 +22,18 @@ impl<B: Backend<S>, S: Sample> PcmDevice<B, S> {
     pub fn open(device_name: &str, direction: StreamDirection) -> Result<Self> {
         let backend = B::open(device_name, direction)?;
         Ok(PcmDevice {
-            backend: Arc::new(backend),
+            backend,
             _phantom: PhantomData,
         })
     }
 
     #[inline(always)]
-    pub fn configure(&self, config: &AudioConfig) -> Result<()> {
+    pub fn configure(&mut self, config: &AudioConfig) -> Result<()> {
         self.backend.configure(config)
     }
 
     #[inline(always)]
-    pub fn write_frames(&self, buffer: &[S], channels: Channels) -> Result<usize> {
+    pub fn write_frames(&mut self, buffer: &[S], channels: Channels) -> Result<usize> {
         self.backend.write_frames(buffer, channels)
     }
 
@@ -44,12 +43,12 @@ impl<B: Backend<S>, S: Sample> PcmDevice<B, S> {
     }
 
     #[inline(always)]
-    pub fn reset(&self) -> Result<()> {
+    pub fn reset(&mut self) -> Result<()> {
         self.backend.reset()
     }
 
     #[inline(always)]
-    pub fn close(&self) -> Result<()> {
+    pub fn close(&mut self) -> Result<()> {
         self.backend.close()
     }
 }

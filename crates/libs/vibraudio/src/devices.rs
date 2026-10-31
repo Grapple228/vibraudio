@@ -32,9 +32,6 @@ pub struct Speakers<S: Sample> {
 impl<S: Sample> Speakers<S> {
     pub fn new(config: AudioConfig) -> Result<Self> {
         Ok(Self {
-            #[cfg(not(target_arch = "wasm32"))]
-            handle: None,
-            #[cfg(target_arch = "wasm32")]
             handle: None,
             config,
             running: Arc::new(AtomicBool::new(false)),
@@ -53,7 +50,7 @@ impl<S: Sample> Speakers<S> {
             return Err(Error::AlreadyRunning);
         }
 
-        let backend = DefaultBackend::<S>::open("default", StreamDirection::Playback)?;
+        let mut backend = DefaultBackend::<S>::open("default", StreamDirection::Playback)?;
         backend.configure(&self.config)?;
 
         let channels = self.config.channels;
@@ -95,11 +92,14 @@ impl<S: Sample> Speakers<S> {
         _priority: Priority,
         #[cfg(target_os = "windows")] _mcss_value: vibraudio_thread::MmcssValue,
     ) -> Result<()> {
+        use vibraudio_core::BackendAsync;
+
         if self.running.load(Ordering::SeqCst) {
             return Err(Error::AlreadyRunning);
         }
 
-        let backend = DefaultBackend::<S>::open_async("default", StreamDirection::Playback).await?;
+        let mut backend =
+            DefaultBackend::<S>::open_async("default", StreamDirection::Playback).await?;
         backend.configure_async(&self.config).await?;
 
         let channels = self.config.channels;
@@ -172,7 +172,7 @@ impl<S: Sample> Mic<S> {
             return Err(Error::AlreadyRunning);
         }
 
-        let backend = DefaultBackend::<S>::open("default", StreamDirection::Capture)?;
+        let mut backend = DefaultBackend::<S>::open("default", StreamDirection::Capture)?;
         backend.configure(&self.config)?;
 
         let channels = self.config.channels;
@@ -220,11 +220,14 @@ impl<S: Sample> Mic<S> {
         _priority: Priority,
         #[cfg(target_os = "windows")] _mcss_value: vibraudio_thread::MmcssValue,
     ) -> Result<()> {
+        use vibraudio_core::BackendAsync;
+
         if self.running.load(Ordering::SeqCst) {
             return Err(Error::AlreadyRunning);
         }
 
-        let backend = DefaultBackend::<S>::open_async("default", StreamDirection::Capture).await?;
+        let mut backend =
+            DefaultBackend::<S>::open_async("default", StreamDirection::Capture).await?;
         backend.configure_async(&self.config).await?;
 
         let channels = self.config.channels;

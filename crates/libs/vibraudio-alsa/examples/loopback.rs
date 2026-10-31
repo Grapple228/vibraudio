@@ -3,10 +3,10 @@ use vibraudio_core::{AudioConfig, Backend, Channels, StreamDirection};
 
 fn main() {
     // Open the default ALSA device for capture (microphone)
-    let capture = AlsaBackend::<i16>::open("default", StreamDirection::Capture)
+    let mut capture = AlsaBackend::<i16>::open("default", StreamDirection::Capture)
         .expect("Failed to open capture device");
     // Open the default ALSA device for playback (speakers)
-    let playback = AlsaBackend::<i16>::open("default", StreamDirection::Playback)
+    let mut playback = AlsaBackend::<i16>::open("default", StreamDirection::Playback)
         .expect("Failed to open playback device");
 
     // Both devices share the same config: 48kHz, mono, signed 16-bit LE

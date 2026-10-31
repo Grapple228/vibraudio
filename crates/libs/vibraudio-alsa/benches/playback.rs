@@ -4,7 +4,7 @@ use vibraudio_core::{AudioConfig, Backend, StreamDirection};
 
 fn main() {
     // Open the ALSA "null" device which discards all written audio
-    let device = AlsaBackend::<i16>::open("default", StreamDirection::Playback)
+    let mut device = AlsaBackend::<i16>::open("default", StreamDirection::Playback)
         .expect("Failed to open null device");
 
     // Configure for standard CD-quality stereo playback

@@ -1,5 +1,5 @@
 use vibraudio_core::{
-    sample::Sample, AudioConfig, AudioFormatInfo, Backend, Channels, Error, Result, StreamDirection,
+    AudioConfig, AudioFormatInfo, Backend, Channels, Error, Result, StreamDirection, sample::Sample,
 };
 
 use crate::{
@@ -59,7 +59,7 @@ impl<S: Sample> Backend<S> for AlsaBackend<S> {
         Ok(formats)
     }
 
-    fn configure(&self, config: &AudioConfig) -> Result<()> {
+    fn configure(&mut self, config: &AudioConfig) -> Result<()> {
         let err = unsafe {
             crate::ffi::snd_pcm_set_params(
                 self.handle,
@@ -79,7 +79,7 @@ impl<S: Sample> Backend<S> for AlsaBackend<S> {
         Ok(())
     }
 
-    fn write_frames(&self, buffer: &[S], channels: Channels) -> Result<usize> {
+    fn write_frames(&mut self, buffer: &[S], channels: Channels) -> Result<usize> {
         let frames = buffer.len() / channels.as_usize();
         let mut written = 0;
 
@@ -133,7 +133,7 @@ impl<S: Sample> Backend<S> for AlsaBackend<S> {
         Ok(result as usize)
     }
 
-    fn reset(&self) -> Result<()> {
+    fn reset(&mut self) -> Result<()> {
         let err = unsafe { ffi::snd_pcm_reset(self.handle) };
         if err < 0 {
             return Err(Error::from_alsa(err));
@@ -141,7 +141,7 @@ impl<S: Sample> Backend<S> for AlsaBackend<S> {
         Ok(())
     }
 
-    fn close(&self) -> Result<()> {
+    fn close(&mut self) -> Result<()> {
         unsafe {
             ffi::snd_pcm_drain(self.handle);
             ffi::snd_pcm_close(self.handle);

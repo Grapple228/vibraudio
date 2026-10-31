@@ -1,24 +1,30 @@
 //! Loopback с микрофона на колонки через кольцевой буфер
 
-use std::{
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc,
-    },
-    thread,
-    time::Duration,
-};
-use vibraudio::{
-    core::{AudioConfig, StreamDirection},
-    platform::DefaultBackend,
-};
-use vibraudio_core::{sample::Sample, stream::StreamConfig, Backend, Channels};
-use vibraudio_ringbuffer::BufferWriter;
-use vibraudio_thread::Priority;
-
 pub type SampleType = f32;
 
+#[cfg(target_arch = "wasm32")]
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    panic!("Shoud be native platform")
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    use std::{
+        sync::{
+            Arc,
+            atomic::{AtomicBool, Ordering},
+        },
+        time::Duration,
+    };
+    use vibraudio::{
+        core::{AudioConfig, StreamDirection},
+        platform::DefaultBackend,
+    };
+    use vibraudio_core::{Backend, Channels, sample::Sample, stream::StreamConfig};
+    use vibraudio_ringbuffer::BufferWriter;
+    use vibraudio_thread::Priority;
+    use vibraudio_thread::thread;
+
     println!("🎤 Loopback: Микрофон → Кольцевой буфер → Колонки");
     println!("=================================================");
 

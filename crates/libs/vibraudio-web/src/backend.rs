@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
-use std::sync::Mutex;
 use tracing::info;
+use vibraudio_core::BackendAsync;
 use vibraudio_core::{
     AudioConfig, AudioFormatInfo, Backend, Channels, Error, Result, StreamDirection, sample::Sample,
 };
@@ -25,12 +25,12 @@ static mut RING_RD: usize = 0;
 
 #[wasm_bindgen]
 pub fn input_ptr() -> u32 {
-    unsafe { std::ptr::addr_of_mut!(INPUT) as u32 }
+    std::ptr::addr_of_mut!(INPUT) as u32
 }
 
 #[wasm_bindgen]
 pub fn output_ptr() -> u32 {
-    unsafe { std::ptr::addr_of_mut!(OUTPUT) as u32 }
+    std::ptr::addr_of_mut!(OUTPUT) as u32
 }
 
 #[wasm_bindgen]
@@ -70,7 +70,7 @@ pub fn playback_process(frames: u32) {
 
 pub struct WebBackend<S: Sample> {
     direction: StreamDirection,
-    inner: Mutex<Option<Inner>>,
+    inner: Option<Inner>,
     _phantom: PhantomData<S>,
 }
 
@@ -82,7 +82,7 @@ struct Inner {
 
 impl<S: Sample> WebBackend<S> {
     async fn build(direction: StreamDirection) -> Result<Inner> {
-        let mut co = AudioContextOptions::new();
+        let co = AudioContextOptions::new();
         co.set_latency_hint_audio_context_latency_category(
             AudioContextLatencyCategory::Interactive,
         );
@@ -90,7 +90,7 @@ impl<S: Sample> WebBackend<S> {
 
         if ctx.state() == AudioContextState::Suspended {
             if let Ok(p) = ctx.resume() {
-                let _ = wasm_bindgen_futures::JsFuture::from(p).await;
+                let _ = p.await;
             }
         }
 
@@ -98,12 +98,8 @@ impl<S: Sample> WebBackend<S> {
         let p = worklet
             .add_module("worklet.js")
             .map_err(|_| Error::DeviceNotFound)?;
-        wasm_bindgen_futures::JsFuture::from(p)
-            .await
-            .map_err(|_| Error::DeviceNotFound)?;
+        p.await.map_err(|_| Error::DeviceNotFound)?;
 
-        // ВАЖНО: передаём memory ГЛАВНОГО ПОТОКА — все worklet-инстансы
-        // шарят одну память → shared static INPUT/OUTPUT/RING работает.
         let module = wasm_bindgen::module();
         let memory = wasm_bindgen::memory();
 
@@ -116,8 +112,9 @@ impl<S: Sample> WebBackend<S> {
 
         let (mic_stream, mic_source) = match direction {
             StreamDirection::Playback => {
-                js_sys::Reflect::set(&opts, &"numberOfInputs".into(), &JsValue::from(0)).ok();
-                js_sys::Reflect::set(&opts, &"numberOfOutputs".into(), &JsValue::from(1)).ok();
+                opts.set_number_of_inputs(1);
+                opts.set_number_of_outputs(1);
+
                 let node = AudioWorkletNode::new_with_options(&ctx, "vibraudio-playback", &opts)
                     .map_err(|_| Error::InvalidConfig)?;
                 node.connect_with_audio_node(&ctx.destination())
@@ -125,43 +122,28 @@ impl<S: Sample> WebBackend<S> {
                 (None, None)
             }
             StreamDirection::Capture => {
-                js_sys::Reflect::set(&opts, &"numberOfInputs".into(), &JsValue::from(1)).ok();
-                js_sys::Reflect::set(&opts, &"numberOfOutputs".into(), &JsValue::from(1)).ok();
+                opts.set_number_of_inputs(1);
+                opts.set_number_of_outputs(1);
+
                 let win = web_sys::window().ok_or(Error::DeviceNotFound)?;
                 let md = win
                     .navigator()
                     .media_devices()
                     .map_err(|_| Error::DeviceNotFound)?;
 
-                // // enable audio and disable audio processing
-                // let audio_constraints = js_sys::Object::new();
-                // js_sys::Reflect::set(
-                //     &audio_constraints,
-                //     &"echoCancellation".into(),
-                //     &JsValue::FALSE,
-                // )
-                // .ok();
-                // js_sys::Reflect::set(
-                //     &audio_constraints,
-                //     &"noiseSuppression".into(),
-                //     &JsValue::FALSE,
-                // )
-                // .ok();
-                // js_sys::Reflect::set(
-                //     &audio_constraints,
-                //     &"autoGainControl".into(),
-                //     &JsValue::FALSE,
-                // )
-                // .ok();
+                // configure audio constraints
+                let audio_constraints = web_sys::MediaTrackConstraints::new();
+                audio_constraints.set_auto_gain_control_bool(false);
+                audio_constraints.set_echo_cancellation_bool(false);
+                audio_constraints.set_noise_suppression_bool(false);
 
                 let c = MediaStreamConstraints::new();
-                // c.set_audio(&audio_constraints);
-                c.set_audio(&JsValue::TRUE);
+                c.set_audio_media_track_constraints(&audio_constraints);
                 c.set_video(&JsValue::FALSE);
                 let p = md
                     .get_user_media_with_constraints(&c)
                     .map_err(|_| Error::DeviceNotFound)?;
-                let s = wasm_bindgen_futures::JsFuture::from(p)
+                let s = p
                     .await
                     .map_err(|_| Error::DeviceNotFound)?
                     .dyn_into::<MediaStream>()
@@ -193,26 +175,28 @@ impl<S: Sample> WebBackend<S> {
     }
 }
 
-impl<S: Sample> Backend<S> for WebBackend<S> {
+impl<S: Sample> BackendAsync<S> for WebBackend<S> {
     async fn open_async(_name: &str, direction: StreamDirection) -> Result<Self> {
         Ok(Self {
             direction,
-            inner: Mutex::new(None),
+            inner: None,
             _phantom: PhantomData,
         })
     }
 
-    async fn configure_async(&self, _config: &AudioConfig) -> Result<()> {
+    async fn configure_async(&mut self, _config: &AudioConfig) -> Result<()> {
         let inner = Self::build(self.direction).await?;
-        *self.inner.lock().unwrap() = Some(inner);
+        self.inner = Some(inner);
         info!("✅ WebAudio device opened for {:?}", self.direction);
         Ok(())
     }
+}
 
+impl<S: Sample> Backend<S> for WebBackend<S> {
     fn open(_: &str, _: StreamDirection) -> Result<Self> {
         Err(Error::AsyncRequired)
     }
-    fn configure(&self, _: &AudioConfig) -> Result<()> {
+    fn configure(&mut self, _: &AudioConfig) -> Result<()> {
         Ok(())
     }
 
@@ -222,19 +206,19 @@ impl<S: Sample> Backend<S> for WebBackend<S> {
 
     // Loopback идёт напрямую worklet-to-worklet через RING.
     // Трейт-методы для loopback не используются.
-    fn write_frames(&self, _buffer: &[S], _channels: Channels) -> Result<usize> {
+    fn write_frames(&mut self, _buffer: &[S], _channels: Channels) -> Result<usize> {
         Ok(0)
     }
     fn read_frames(&self, _buffer: &mut [S], _channels: Channels) -> Result<usize> {
         Ok(0)
     }
 
-    fn reset(&self) -> Result<()> {
+    fn reset(&mut self) -> Result<()> {
         Ok(())
     }
 
-    fn close(&self) -> Result<()> {
-        if let Some(inner) = self.inner.lock().unwrap().take() {
+    fn close(&mut self) -> Result<()> {
+        if let Some(inner) = self.inner.take() {
             let _ = inner.ctx.close();
         }
         Ok(())
