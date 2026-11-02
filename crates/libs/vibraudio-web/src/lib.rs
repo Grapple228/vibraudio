@@ -7,21 +7,24 @@ pub use backend::WebBackend;
 mod yield_impl {
     use std::cell::RefCell;
     use std::collections::VecDeque;
+    use std::future::Future;
+    use std::pin::Pin;
     use std::rc::Rc;
+    use std::task::{Context, Poll, Waker};
     use wasm_bindgen::prelude::*;
 
     thread_local! {
-        static YIELD: RefCell<Option<Yielder>> = const { RefCell::new(None) };
+        static YIELDER: RefCell<Option<Yielder>> = const { RefCell::new(None) };
     }
 
     struct Yielder {
         _port1: web_sys::MessagePort,
         port2: web_sys::MessagePort,
-        queue: Rc<RefCell<VecDeque<js_sys::Function>>>,
+        wakers: Rc<RefCell<VecDeque<Waker>>>,
     }
 
     fn ensure_yielder() {
-        YIELD.with(|slot| {
+        YIELDER.with(|slot| {
             if slot.borrow().is_some() {
                 return;
             }
@@ -30,42 +33,58 @@ mod yield_impl {
             let port1 = channel.port1();
             let port2 = channel.port2();
 
-            let queue: Rc<RefCell<VecDeque<js_sys::Function>>> =
-                Rc::new(RefCell::new(VecDeque::new()));
+            let wakers: Rc<RefCell<VecDeque<Waker>>> = Rc::new(RefCell::new(VecDeque::new()));
 
-            let queue_clone = queue.clone();
+            let wakers_clone = wakers.clone();
             let cb = Closure::<dyn FnMut()>::new(move || {
-                let mut q = queue_clone.borrow_mut();
-                while let Some(resolve) = q.pop_front() {
-                    let _ = resolve.call0(&JsValue::NULL);
+                // Drain all waiters. Waker::wake() does not allocate JS objects.
+                let drained: Vec<Waker> = {
+                    let mut q = wakers_clone.borrow_mut();
+                    q.drain(..).collect()
+                };
+                for w in drained {
+                    w.wake();
                 }
             });
             port1.set_onmessage(Some(cb.as_ref().unchecked_ref()));
-            cb.forget(); // один раз за всё приложение — не утечка
+            cb.forget(); // one time for the whole app — not a leak
 
             *slot.borrow_mut() = Some(Yielder {
                 _port1: port1,
                 port2,
-                queue,
+                wakers,
             });
         });
     }
 
-    /// Макротаск-yield через MessageChannel. ~0.1–1 мс.
-    /// Гарантированно отдаёт управление event loop (UI, другие таски).
-    pub async fn yield_fast() {
-        ensure_yielder();
+    struct YieldFast {
+        polled: bool,
+    }
 
-        let promise = js_sys::Promise::new(&mut |resolve, _| {
-            YIELD.with(|slot| {
+    impl Future for YieldFast {
+        type Output = ();
+
+        fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<()> {
+            if self.polled {
+                return Poll::Ready(());
+            }
+            self.polled = true;
+
+            ensure_yielder();
+
+            YIELDER.with(|slot| {
                 let borrow = slot.borrow();
                 let y = borrow.as_ref().expect("yielder");
-                y.queue.borrow_mut().push_back(resolve);
+                y.wakers.borrow_mut().push_back(cx.waker().clone());
                 y.port2.post_message(&JsValue::NULL).expect("post_message");
             });
-        });
 
-        let _ = promise.await;
+            Poll::Pending
+        }
+    }
+
+    pub async fn yield_fast() {
+        YieldFast { polled: false }.await;
     }
 }
 

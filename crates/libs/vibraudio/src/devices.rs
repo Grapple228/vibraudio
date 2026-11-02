@@ -11,6 +11,37 @@ use vibraudio_core::{Error, Result};
 use vibraudio_ringbuffer::{BufferReader, BufferWriter};
 use vibraudio_thread::Priority;
 
+#[cfg(target_arch = "wasm32")]
+use std::sync::atomic::AtomicUsize;
+
+#[cfg(target_arch = "wasm32")]
+static MIC_ERRORS: AtomicUsize = AtomicUsize::new(0);
+#[cfg(target_arch = "wasm32")]
+static PLAY_ERRORS: AtomicUsize = AtomicUsize::new(0);
+#[cfg(target_arch = "wasm32")]
+static MIC_OVERFLOWS: AtomicUsize = AtomicUsize::new(0);
+
+/// Number of `read_frames_async` failures since start. Exposed to JS.
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen::prelude::wasm_bindgen]
+pub fn mic_errors() -> usize {
+    MIC_ERRORS.load(Ordering::Relaxed)
+}
+
+/// Number of `write_frames_async` failures since start. Exposed to JS.
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen::prelude::wasm_bindgen]
+pub fn play_errors() -> usize {
+    PLAY_ERRORS.load(Ordering::Relaxed)
+}
+
+/// Number of times the mic ring buffer was full (MicSource not draining).
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen::prelude::wasm_bindgen]
+pub fn mic_overflows() -> usize {
+    MIC_OVERFLOWS.load(Ordering::Relaxed)
+}
+
 #[cfg(not(target_arch = "wasm32"))]
 use vibraudio_thread::thread::{self, JoinHandle};
 
@@ -85,7 +116,7 @@ impl<S: Sample> Speakers<S> {
         Ok(())
     }
 
-    /// 1:1 с `run`, только async-методы.
+    /// 1:1 with `run`, async methods only.
     #[cfg(target_arch = "wasm32")]
     pub async fn run_async<const SIZE: usize>(
         &mut self,
@@ -114,17 +145,25 @@ impl<S: Sample> Speakers<S> {
                 let read = reader.read(&mut buffer[..max_samples]);
 
                 if read > 0 {
-                    // write_frames_async ждёт (в async-смысле), пока PLAYBACK_BUF
-                    // не примет все фреймы — как snd_pcm_writei в native.
-                    if let Err(e) = backend.write_frames_async(&buffer[..read], channels).await {
-                        tracing::error!("❌ Playback error: {e}");
+                    // write_frames_async blocks internally (hybrid wait)
+                    // until PLAYBACK_BUF accepts all frames — like
+                    // snd_pcm_writei on native. No outer yield needed.
+                    if backend
+                        .write_frames_async(&buffer[..read], channels)
+                        .await
+                        .is_err()
+                    {
+                        // Counter instead of tracing: no allocation, so
+                        // no memory.grow, so the worklet view in worklet.js
+                        // never gets detached by a log line.
+                        PLAY_ERRORS.fetch_add(1, Ordering::Relaxed);
                     }
+                } else {
+                    // ring(speakers) is empty — SpeakersSink hasn't written
+                    // yet. Sleep instead of yield so we don't busy-yield
+                    // ~200 times over the 20 ms tick.
+                    tokio_with_wasm::time::sleep(std::time::Duration::from_millis(1)).await;
                 }
-
-                // Аналог sleep(10µs) в native. В web <4 мс всё равно
-                // клампится, поэтому yield_fast — минимально возможная пауза,
-                // которая отдаёт event loop другим таскам.
-                vibraudio_web::yield_fast().await;
             }
         });
 
@@ -219,7 +258,7 @@ impl<S: Sample> Mic<S> {
         Ok(())
     }
 
-    /// 1:1 с `run`, только async-методы.
+    /// 1:1 with `run`, async methods only.
     #[cfg(target_arch = "wasm32")]
     pub async fn run_async<const SIZE: usize>(
         &mut self,
@@ -244,26 +283,33 @@ impl<S: Sample> Mic<S> {
             let mut buffer = [S::ZERO; crate::platform::FRAMES * 2];
 
             while running.load(Ordering::SeqCst) {
-                // read_frames_async ждёт (в async-смысле), пока CAPTURE_BUF
-                // не наберёт ровно buffer.len()/ch фреймов — как snd_pcm_readi.
+                // read_frames_async blocks internally (hybrid wait) until
+                // CAPTURE_BUF has exactly buffer.len()/ch frames — like
+                // snd_pcm_readi on native.
                 match backend.read_frames_async(&mut buffer, channels).await {
                     Ok(frames_read) => {
                         if frames_read > 0 {
                             let samples = frames_read * channels as usize;
                             let written = writer.write(&buffer[..samples]);
                             if written < samples {
-                                // ring полон — как native sleep(10µs) и продолжаем
+                                // ring(mic) is full — MicSource not draining.
+                                // Count instead of tracing; yield once so
+                                // other tasks get a tick, then continue.
+                                MIC_OVERFLOWS.fetch_add(1, Ordering::Relaxed);
                                 vibraudio_web::yield_fast().await;
-                                continue;
                             }
                         }
+                        // No trailing yield_fast here: the next loop
+                        // iteration calls read_frames_async which yields
+                        // internally if CAPTURE_BUF is empty.
                     }
-                    Err(e) => {
-                        tracing::error!("❌ Capture error: {e}");
+                    Err(_e) => {
+                        // Counter instead of tracing: no allocation.
+                        MIC_ERRORS.fetch_add(1, Ordering::Relaxed);
+                        // Small sleep so a persistent error doesn't spin.
+                        tokio_with_wasm::time::sleep(std::time::Duration::from_millis(1)).await;
                     }
                 }
-
-                vibraudio_web::yield_fast().await;
             }
         });
 

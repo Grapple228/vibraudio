@@ -11,21 +11,21 @@ use wasm_bindgen::JsCast;
 use wasm_bindgen::prelude::*;
 use web_sys::{
     AudioContext, AudioContextLatencyCategory, AudioContextOptions, AudioContextState,
-    AudioWorkletNode, AudioWorkletNodeOptions, MediaStream, MediaStreamAudioSourceNode,
+    AudioWorkletNode, AudioWorkletNodeOptions, GainNode, MediaStream, MediaStreamAudioSourceNode,
     MediaStreamConstraints, MediaTrackConstraints,
 };
 
 pub const FRAMES: usize = 128;
 const MAX_FRAMES: usize = 256;
 
-// Ёмкости ring buffer'ов в стерео-фреймах.
+// Ring buffer capacities in stereo frames.
 const CAPTURE_FRAMES: usize = 4096;
 const PLAYBACK_FRAMES: usize = 4096;
 
 // ============================================================================
-// StereoFrame — Sample для пары f32.
-// Благодаря этому vibraudio_ringbuffer работает в ФРЕЙМАХ, а не в сэмплах.
-// Атомарность на фрейме гарантирована типом, а не ручным (rd + 1) % CAP.
+// StereoFrame — Sample for a single [L, R] pair of f32.
+// Because of this, vibraudio_ringbuffer operates in FRAMES, not samples.
+// Frame atomicity is guaranteed by the type instead of manual (rd + 1) % CAP.
 // ============================================================================
 
 #[repr(transparent)]
@@ -72,11 +72,11 @@ fn playback_pair() -> &'static (PlayWriter, PlayReader) {
     PLAYBACK_PAIR.get_or_init(|| vibraudio_ringbuffer::create_pair())
 }
 
-// Буферы для обмена со worklet.js — interleaved [L,R,L,R,...]
+// Buffers for exchanging with worklet.js — interleaved [L, R, L, R, ...].
 static mut INPUT: [f32; MAX_FRAMES * 2] = [0.0; MAX_FRAMES * 2];
 static mut OUTPUT: [f32; MAX_FRAMES * 2] = [0.0; MAX_FRAMES * 2];
 
-// Один AudioContext — один hardware clock, никакого ppm-дрейфа.
+// One AudioContext for the whole app — one hardware clock, no ppm drift.
 thread_local! {
     static SHARED_CTX: RefCell<Option<AudioContext>> = const { RefCell::new(None) };
     static WORKLET_LOADED: RefCell<bool> = const { RefCell::new(false) };
@@ -92,8 +92,8 @@ pub fn output_ptr() -> u32 {
     std::ptr::addr_of_mut!(OUTPUT) as u32
 }
 
-/// Worklet пишет INPUT → ring.
-/// `write_data` внутри vibraudio_ringbuffer атомарен по фрейму.
+/// Worklet writes INPUT → ring.
+/// `write_data` inside vibraudio_ringbuffer is atomic per frame.
 #[wasm_bindgen]
 pub fn capture_process(frames: u32) {
     let frames = (frames as usize).min(MAX_FRAMES);
@@ -106,7 +106,7 @@ pub fn capture_process(frames: u32) {
     capture_pair().0.write(input_frames);
 }
 
-/// Worklet читает ring → OUTPUT. Underrun — fade-out.
+/// Worklet reads ring → OUTPUT. On underrun — fade out.
 #[wasm_bindgen]
 pub fn playback_process(frames: u32) {
     let frames = (frames as usize).min(MAX_FRAMES);
@@ -139,6 +139,13 @@ pub struct WebBackend<S: Sample> {
 
 struct Inner {
     ctx: AudioContext,
+    // Kept alive explicitly: even though the JS graph holds the node,
+    // AudioWorkletNode retirement rules for sourceless nodes are fuzzy.
+    // Holding the handle guarantees the node is dropped deterministically
+    // together with Inner (and disconnected from destination).
+    _node: AudioWorkletNode,
+    // Only for capture path: gain(0) so mic is not echoed to speakers.
+    _gain: Option<GainNode>,
     _mic_stream: Option<MediaStream>,
     _mic_source: Option<MediaStreamAudioSourceNode>,
 }
@@ -203,7 +210,7 @@ impl<S: Sample> WebBackend<S> {
         let opts = AudioWorkletNodeOptions::new();
         opts.set_processor_options(Some(&po));
 
-        let (mic_stream, mic_source) = match direction {
+        let (mic_stream, mic_source, node, gain) = match direction {
             StreamDirection::Playback => {
                 opts.set_number_of_inputs(0);
                 opts.set_number_of_outputs(1);
@@ -216,7 +223,7 @@ impl<S: Sample> WebBackend<S> {
                     .map_err(|_| Error::InvalidConfig)?;
                 node.connect_with_audio_node(&ctx.destination())
                     .map_err(|_| Error::InvalidConfig)?;
-                (None, None)
+                (None, None, node, None)
             }
             StreamDirection::Capture => {
                 opts.set_number_of_inputs(1);
@@ -257,12 +264,14 @@ impl<S: Sample> WebBackend<S> {
                     .map_err(|_| Error::InvalidConfig)?;
                 gain.connect_with_audio_node(&ctx.destination())
                     .map_err(|_| Error::InvalidConfig)?;
-                (Some(s), Some(src))
+                (Some(s), Some(src), node, Some(gain))
             }
         };
 
         Ok(Inner {
             ctx,
+            _node: node,
+            _gain: gain,
             _mic_stream: mic_stream,
             _mic_source: mic_source,
         })
@@ -289,20 +298,31 @@ impl<S: Sample> BackendAsync<S> for WebBackend<S> {
         Ok(())
     }
 
-    /// Async read: блокируется (в async-смысле), пока в CAPTURE_RING
-    /// не наберётся ровно `buffer.len() / ch` фреймов.
     async fn read_frames_async(&self, buffer: &mut [S], channels: Channels) -> Result<usize> {
         let ch = channels.as_usize();
         let want_frames = buffer.len() / ch;
         if want_frames == 0 {
             return Ok(0);
         }
+        // Defensive: if want_frames >= CAPTURE_FRAMES the wait loop would
+        // never break (ring capacity is the hard upper bound).
+        if want_frames >= CAPTURE_FRAMES {
+            return Err(Error::InvalidConfig);
+        }
 
+        // Hybrid wait: 4 fast yields, then sleep(1ms).
+        let mut spins: u32 = 0;
         loop {
             if capture_pair().1.available_data() >= want_frames {
                 break;
             }
-            crate::yield_fast().await;
+            spins += 1;
+            if spins <= 4 {
+                crate::yield_fast().await;
+            } else {
+                tokio_with_wasm::time::sleep(std::time::Duration::from_millis(1)).await;
+                spins = 0;
+            }
         }
 
         let mut scratch = [StereoFrame::ZERO; MAX_FRAMES];
@@ -329,19 +349,28 @@ impl<S: Sample> BackendAsync<S> for WebBackend<S> {
         Ok(total)
     }
 
-    /// Async write: блокируется, пока в PLAYBACK_RING не освободится место.
     async fn write_frames_async(&mut self, buffer: &[S], channels: Channels) -> Result<usize> {
         let ch = channels.as_usize();
         let want_frames = buffer.len() / ch;
         if want_frames == 0 {
             return Ok(0);
         }
+        if want_frames >= PLAYBACK_FRAMES {
+            return Err(Error::InvalidConfig);
+        }
 
+        let mut spins: u32 = 0;
         loop {
             if playback_pair().0.available_space() >= want_frames {
                 break;
             }
-            crate::yield_fast().await;
+            spins += 1;
+            if spins <= 4 {
+                crate::yield_fast().await;
+            } else {
+                tokio_with_wasm::time::sleep(std::time::Duration::from_millis(1)).await;
+                spins = 0;
+            }
         }
 
         let mut scratch = [StereoFrame::ZERO; MAX_FRAMES];
@@ -445,15 +474,36 @@ impl<S: Sample> Backend<S> for WebBackend<S> {
         Ok(total)
     }
 
+    /// Drain both rings so a stop/restart does not deliver stale samples.
+    ///
+    /// Must not be called while a stream is running — the playback drain
+    /// conflicts with the worklet's read side on PLAYBACK_RING.
     fn reset(&mut self) -> Result<()> {
-        // Ring buffer нельзя сбросить извне (create_pair не даёт такой API),
-        // но при пересоздании OnceLock не сбросится. Для нашей задачи
-        // reset не критичен — оставляем no-op.
+        let mut scratch = [StereoFrame::ZERO; MAX_FRAMES];
+
+        // capture ring: read and discard everything
+        loop {
+            let n = capture_pair().1.read(&mut scratch);
+            if n == 0 {
+                break;
+            }
+        }
+
+        // playback ring: same, drain the reader side
+        loop {
+            let n = playback_pair().1.read(&mut scratch);
+            if n == 0 {
+                break;
+            }
+        }
+
         Ok(())
     }
 
     fn close(&mut self) -> Result<()> {
-        // Shared ctx не закрываем — второй бэкенд его использует.
+        // Shared ctx is not closed — the other backend uses it.
+        // Dropping Inner disconnects and drops the AudioWorkletNode,
+        // the gain (if any), and the mic source node.
         self.inner = None;
         Ok(())
     }
