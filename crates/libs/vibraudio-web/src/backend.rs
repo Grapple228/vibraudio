@@ -1,10 +1,12 @@
+use std::cell::RefCell;
 use std::marker::PhantomData;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::OnceLock;
 use tracing::info;
 use vibraudio_core::BackendAsync;
 use vibraudio_core::{
     AudioConfig, AudioFormatInfo, Backend, Channels, Error, Result, StreamDirection, sample::Sample,
 };
+use vibraudio_ringbuffer::{BufferReader, BufferWriter};
 use wasm_bindgen::JsCast;
 use wasm_bindgen::prelude::*;
 use web_sys::{
@@ -14,25 +16,71 @@ use web_sys::{
 };
 
 pub const FRAMES: usize = 128;
-const MAX_FRAMES: usize = 128;
+const MAX_FRAMES: usize = 256;
 
-// Стерео-буферы, ёмкость в сэмплах (L,R,L,R,...).
-// CAPTURE: ~42 мс @ 48k stereo — Mic дренирует быстро.
-// PLAYBACK: ~42 мс @ 48k stereo — перекрывает тик MediaClock 20 мс.
-const CAPTURE_CAP: usize = 8192;
-const PLAYBACK_CAP: usize = 8192;
+// Ёмкости ring buffer'ов в стерео-фреймах.
+const CAPTURE_FRAMES: usize = 4096;
+const PLAYBACK_FRAMES: usize = 4096;
 
-// INPUT/OUTPUT — стерео interleaved, с ними работает worklet.js (256 сэмплов на квант).
+// ============================================================================
+// StereoFrame — Sample для пары f32.
+// Благодаря этому vibraudio_ringbuffer работает в ФРЕЙМАХ, а не в сэмплах.
+// Атомарность на фрейме гарантирована типом, а не ручным (rd + 1) % CAP.
+// ============================================================================
+
+#[repr(transparent)]
+#[derive(Clone, Copy, PartialEq)]
+pub struct StereoFrame(pub [f32; 2]);
+
+impl Sample for StereoFrame {
+    const ZERO: Self = StereoFrame([0.0; 2]);
+
+    fn from_f32(v: f32) -> Self {
+        StereoFrame([v, v])
+    }
+
+    fn to_f32(&self) -> f32 {
+        (self.0[0] + self.0[1]) * 0.5
+    }
+
+    fn sample_format() -> vibraudio_core::SampleFormat {
+        vibraudio_core::SampleFormat::FloatLe
+    }
+
+    fn add(&self, other: Self) -> Self {
+        StereoFrame([self.0[0] + other.0[0], self.0[1] + other.0[1]])
+    }
+
+    fn mul(&self, other: Self) -> Self {
+        StereoFrame([self.0[0] * other.0[0], self.0[1] * other.0[1]])
+    }
+}
+
+type CapWriter = BufferWriter<CAPTURE_FRAMES, StereoFrame>;
+type CapReader = BufferReader<CAPTURE_FRAMES, StereoFrame>;
+type PlayWriter = BufferWriter<PLAYBACK_FRAMES, StereoFrame>;
+type PlayReader = BufferReader<PLAYBACK_FRAMES, StereoFrame>;
+
+static CAPTURE_PAIR: OnceLock<(CapWriter, CapReader)> = OnceLock::new();
+static PLAYBACK_PAIR: OnceLock<(PlayWriter, PlayReader)> = OnceLock::new();
+
+fn capture_pair() -> &'static (CapWriter, CapReader) {
+    CAPTURE_PAIR.get_or_init(|| vibraudio_ringbuffer::create_pair())
+}
+
+fn playback_pair() -> &'static (PlayWriter, PlayReader) {
+    PLAYBACK_PAIR.get_or_init(|| vibraudio_ringbuffer::create_pair())
+}
+
+// Буферы для обмена со worklet.js — interleaved [L,R,L,R,...]
 static mut INPUT: [f32; MAX_FRAMES * 2] = [0.0; MAX_FRAMES * 2];
 static mut OUTPUT: [f32; MAX_FRAMES * 2] = [0.0; MAX_FRAMES * 2];
 
-static mut CAPTURE_BUF: [f32; CAPTURE_CAP] = [0.0; CAPTURE_CAP];
-static CAPTURE_WR: AtomicUsize = AtomicUsize::new(0);
-static CAPTURE_RD: AtomicUsize = AtomicUsize::new(0);
-
-static mut PLAYBACK_BUF: [f32; PLAYBACK_CAP] = [0.0; PLAYBACK_CAP];
-static PLAYBACK_WR: AtomicUsize = AtomicUsize::new(0);
-static PLAYBACK_RD: AtomicUsize = AtomicUsize::new(0);
+// Один AudioContext — один hardware clock, никакого ppm-дрейфа.
+thread_local! {
+    static SHARED_CTX: RefCell<Option<AudioContext>> = const { RefCell::new(None) };
+    static WORKLET_LOADED: RefCell<bool> = const { RefCell::new(false) };
+}
 
 #[wasm_bindgen]
 pub fn input_ptr() -> u32 {
@@ -44,37 +92,43 @@ pub fn output_ptr() -> u32 {
     std::ptr::addr_of_mut!(OUTPUT) as u32
 }
 
-/// CaptureProcessor пишет в INPUT (стерео interleaved). Копируем INPUT → CAPTURE_BUF.
+/// Worklet пишет INPUT → ring.
+/// `write_data` внутри vibraudio_ringbuffer атомарен по фрейму.
 #[wasm_bindgen]
 pub fn capture_process(frames: u32) {
-    let n = (frames as usize).min(MAX_FRAMES) * 2;
-    let input = unsafe { &*std::ptr::addr_of!(INPUT) };
-    let buf = unsafe { &mut *std::ptr::addr_of_mut!(CAPTURE_BUF) };
-    let mut wr = CAPTURE_WR.load(Ordering::Acquire);
-    for i in 0..n {
-        buf[wr] = input[i];
-        wr = (wr + 1) % CAPTURE_CAP;
+    let frames = (frames as usize).min(MAX_FRAMES);
+    if frames == 0 {
+        return;
     }
-    CAPTURE_WR.store(wr, Ordering::Release);
+    let input_frames: &[StereoFrame] = unsafe {
+        std::slice::from_raw_parts(std::ptr::addr_of!(INPUT) as *const StereoFrame, frames)
+    };
+    capture_pair().0.write(input_frames);
 }
 
-/// PlaybackProcessor читает из OUTPUT (стерео interleaved). Копируем PLAYBACK_BUF → OUTPUT.
+/// Worklet читает ring → OUTPUT. Underrun — fade-out.
 #[wasm_bindgen]
 pub fn playback_process(frames: u32) {
-    let n = (frames as usize).min(MAX_FRAMES) * 2;
-    let buf = unsafe { &*std::ptr::addr_of!(PLAYBACK_BUF) };
-    let output = unsafe { &mut *std::ptr::addr_of_mut!(OUTPUT) };
-    let mut rd = PLAYBACK_RD.load(Ordering::Acquire);
-    let wr = PLAYBACK_WR.load(Ordering::Acquire);
-    for i in 0..n {
-        if rd != wr {
-            output[i] = buf[rd];
-            rd = (rd + 1) % PLAYBACK_CAP;
+    let frames = (frames as usize).min(MAX_FRAMES);
+    if frames == 0 {
+        return;
+    }
+    let output_frames: &mut [StereoFrame] = unsafe {
+        std::slice::from_raw_parts_mut(std::ptr::addr_of_mut!(OUTPUT) as *mut StereoFrame, frames)
+    };
+    let got = playback_pair().1.read(output_frames);
+    if got < frames {
+        let (l, r) = if got > 0 {
+            (output_frames[got - 1].0[0], output_frames[got - 1].0[1])
         } else {
-            output[i] = 0.0;
+            (0.0, 0.0)
+        };
+        let rem = frames - got;
+        for j in 0..rem {
+            let t = 1.0 - (j as f32 / rem as f32);
+            output_frames[got + j].0 = [l * t, r * t];
         }
     }
-    PLAYBACK_RD.store(rd, Ordering::Release);
 }
 
 pub struct WebBackend<S: Sample> {
@@ -89,28 +143,55 @@ struct Inner {
     _mic_source: Option<MediaStreamAudioSourceNode>,
 }
 
-impl<S: Sample> WebBackend<S> {
-    async fn build(direction: StreamDirection) -> Result<Inner> {
-        let co = AudioContextOptions::new();
-        co.set_latency_hint_audio_context_latency_category(
-            AudioContextLatencyCategory::Interactive,
-        );
-        co.set_sample_rate(48_000.0);
-        let ctx = AudioContext::new_with_context_options(&co).map_err(|_| Error::DeviceNotFound)?;
-
-        info!("AudioContext sample_rate = {}", ctx.sample_rate());
-
+async fn get_shared_ctx() -> Result<AudioContext> {
+    if let Some(ctx) = SHARED_CTX.with(|c| c.borrow().clone()) {
         if ctx.state() == AudioContextState::Suspended {
             if let Ok(p) = ctx.resume() {
                 let _ = p.await;
             }
         }
+        return Ok(ctx);
+    }
 
-        let worklet = ctx.audio_worklet().map_err(|_| Error::DeviceNotFound)?;
-        let p = worklet
+    let co = AudioContextOptions::new();
+    co.set_latency_hint_audio_context_latency_category(AudioContextLatencyCategory::Interactive);
+    co.set_sample_rate(48_000.0);
+    let ctx = AudioContext::new_with_context_options(&co).map_err(|_| Error::DeviceNotFound)?;
+
+    info!("AudioContext created, sample_rate = {}", ctx.sample_rate());
+
+    if ctx.state() == AudioContextState::Suspended {
+        if let Ok(p) = ctx.resume() {
+            let _ = p.await;
+        }
+    }
+
+    let loaded = WORKLET_LOADED.with(|c| *c.borrow());
+    if !loaded {
+        ctx.audio_worklet()
+            .map_err(|_| Error::DeviceNotFound)?
             .add_module("worklet.js")
+            .map_err(|_| Error::DeviceNotFound)?
+            .await
             .map_err(|_| Error::DeviceNotFound)?;
-        p.await.map_err(|_| Error::DeviceNotFound)?;
+        WORKLET_LOADED.with(|c| *c.borrow_mut() = true);
+    }
+
+    SHARED_CTX.with(|c| *c.borrow_mut() = Some(ctx.clone()));
+    Ok(ctx)
+}
+
+impl<S: Sample> WebBackend<S> {
+    pub fn playback_free_frames(&self) -> usize {
+        playback_pair().0.available_space()
+    }
+
+    pub fn capture_available_frames(&self) -> usize {
+        capture_pair().1.available_data()
+    }
+
+    async fn build(direction: StreamDirection) -> Result<Inner> {
+        let ctx = get_shared_ctx().await?;
 
         let module = wasm_bindgen::module();
         let memory = wasm_bindgen::memory();
@@ -127,7 +208,6 @@ impl<S: Sample> WebBackend<S> {
                 opts.set_number_of_inputs(0);
                 opts.set_number_of_outputs(1);
 
-                // Явно стерео-выход (иначе браузер может отдать моно)
                 let oc = js_sys::Array::new();
                 oc.push(&JsValue::from(2));
                 opts.set_output_channel_count(&oc);
@@ -171,8 +251,6 @@ impl<S: Sample> WebBackend<S> {
                     .map_err(|_| Error::InvalidConfig)?;
                 src.connect_with_audio_node(&node)
                     .map_err(|_| Error::InvalidConfig)?;
-                // Микрофон → capture node → gain(0) → destination.
-                // gain(0) = захватываем, но НЕ воспроизводим напрямую.
                 let gain = ctx.create_gain().map_err(|_| Error::InvalidConfig)?;
                 gain.gain().set_value(0.0);
                 node.connect_with_audio_node(&gain)
@@ -202,9 +280,91 @@ impl<S: Sample> BackendAsync<S> for WebBackend<S> {
 
     async fn configure_async(&mut self, _config: &AudioConfig) -> Result<()> {
         let inner = Self::build(self.direction).await?;
+        info!(
+            "✅ WebAudio device opened: {:?}, ctx.rate={}",
+            self.direction,
+            inner.ctx.sample_rate() as u32
+        );
         self.inner = Some(inner);
-        info!("✅ WebAudio device opened for {:?}", self.direction);
         Ok(())
+    }
+
+    /// Async read: блокируется (в async-смысле), пока в CAPTURE_RING
+    /// не наберётся ровно `buffer.len() / ch` фреймов.
+    async fn read_frames_async(&self, buffer: &mut [S], channels: Channels) -> Result<usize> {
+        let ch = channels.as_usize();
+        let want_frames = buffer.len() / ch;
+        if want_frames == 0 {
+            return Ok(0);
+        }
+
+        loop {
+            if capture_pair().1.available_data() >= want_frames {
+                break;
+            }
+            crate::yield_fast().await;
+        }
+
+        let mut scratch = [StereoFrame::ZERO; MAX_FRAMES];
+        let mut total = 0;
+        while total < want_frames {
+            let chunk = (want_frames - total).min(MAX_FRAMES);
+            let got = capture_pair().1.read(&mut scratch[..chunk]);
+            if got == 0 {
+                break;
+            }
+            for i in 0..got {
+                let l = scratch[i].0[0];
+                let r = scratch[i].0[1];
+                let out = total + i;
+                if ch == 1 {
+                    buffer[out] = S::from_f32((l + r) * 0.5);
+                } else {
+                    buffer[out * ch] = S::from_f32(l);
+                    buffer[out * ch + 1] = S::from_f32(r);
+                }
+            }
+            total += got;
+        }
+        Ok(total)
+    }
+
+    /// Async write: блокируется, пока в PLAYBACK_RING не освободится место.
+    async fn write_frames_async(&mut self, buffer: &[S], channels: Channels) -> Result<usize> {
+        let ch = channels.as_usize();
+        let want_frames = buffer.len() / ch;
+        if want_frames == 0 {
+            return Ok(0);
+        }
+
+        loop {
+            if playback_pair().0.available_space() >= want_frames {
+                break;
+            }
+            crate::yield_fast().await;
+        }
+
+        let mut scratch = [StereoFrame::ZERO; MAX_FRAMES];
+        let mut total = 0;
+        while total < want_frames {
+            let chunk = (want_frames - total).min(MAX_FRAMES);
+            for i in 0..chunk {
+                let s = total + i;
+                let (l, r) = if ch == 1 {
+                    let v = buffer[s].to_f32();
+                    (v, v)
+                } else {
+                    (buffer[s * ch].to_f32(), buffer[s * ch + 1].to_f32())
+                };
+                scratch[i] = StereoFrame([l, r]);
+            }
+            let written = playback_pair().0.write(&scratch[..chunk]);
+            if written == 0 {
+                break;
+            }
+            total += written;
+        }
+        Ok(total)
     }
 }
 
@@ -223,70 +383,78 @@ impl<S: Sample> Backend<S> for WebBackend<S> {
     fn read_frames(&self, buffer: &mut [S], channels: Channels) -> Result<usize> {
         let ch = channels.as_usize();
         let want_frames = buffer.len() / ch;
-        let rd = CAPTURE_RD.load(Ordering::Acquire);
-        let wr = CAPTURE_WR.load(Ordering::Acquire);
-        let avail_samples = (wr + CAPTURE_CAP - rd) % CAPTURE_CAP;
-        let avail_frames = avail_samples / 2;
-        let take = want_frames.min(avail_frames);
-        if take == 0 {
+        let avail = capture_pair().1.available_data();
+        let to_read = want_frames.min(avail);
+        if to_read == 0 {
             return Ok(0);
         }
 
-        let buf = unsafe { &*std::ptr::addr_of!(CAPTURE_BUF) };
-        let mut rd_new = rd;
-        for i in 0..take {
-            let l = buf[rd_new];
-            let r = buf[(rd_new + 1) % CAPTURE_CAP];
-            rd_new = (rd_new + 2) % CAPTURE_CAP;
-            if ch == 1 {
-                buffer[i] = S::from_f32((l + r) * 0.5);
-            } else {
-                buffer[i * ch] = S::from_f32(l);
-                buffer[i * ch + 1] = S::from_f32(r);
+        let mut scratch = [StereoFrame::ZERO; MAX_FRAMES];
+        let mut total = 0;
+        while total < to_read {
+            let chunk = (to_read - total).min(MAX_FRAMES);
+            let got = capture_pair().1.read(&mut scratch[..chunk]);
+            if got == 0 {
+                break;
             }
+            for i in 0..got {
+                let l = scratch[i].0[0];
+                let r = scratch[i].0[1];
+                let out = total + i;
+                if ch == 1 {
+                    buffer[out] = S::from_f32((l + r) * 0.5);
+                } else {
+                    buffer[out * ch] = S::from_f32(l);
+                    buffer[out * ch + 1] = S::from_f32(r);
+                }
+            }
+            total += got;
         }
-        CAPTURE_RD.store(rd_new, Ordering::Release);
-        Ok(take)
+        Ok(total)
     }
 
     fn write_frames(&mut self, buffer: &[S], channels: Channels) -> Result<usize> {
         let ch = channels.as_usize();
-        let frames = buffer.len() / ch;
-        let wr = PLAYBACK_WR.load(Ordering::Acquire);
-        let rd = PLAYBACK_RD.load(Ordering::Acquire);
-        let used_samples = (wr + PLAYBACK_CAP - rd) % PLAYBACK_CAP;
-        // Резервируем один стерео-фрейм свободным для различия «полный/пустой»
-        let free_frames = (PLAYBACK_CAP - 2 - used_samples) / 2;
-        let take = frames.min(free_frames);
-        if take == 0 {
+        let want_frames = buffer.len() / ch;
+        let avail = playback_pair().0.available_space();
+        let to_write = want_frames.min(avail);
+        if to_write == 0 {
             return Ok(0);
         }
 
-        let buf = unsafe { &mut *std::ptr::addr_of_mut!(PLAYBACK_BUF) };
-        let mut wr_new = wr;
-        for i in 0..take {
-            let (l, r) = if ch == 1 {
-                let s = buffer[i].to_f32();
-                (s, s)
-            } else {
-                (buffer[i * ch].to_f32(), buffer[i * ch + 1].to_f32())
-            };
-            buf[wr_new] = l;
-            buf[(wr_new + 1) % PLAYBACK_CAP] = r;
-            wr_new = (wr_new + 2) % PLAYBACK_CAP;
+        let mut scratch = [StereoFrame::ZERO; MAX_FRAMES];
+        let mut total = 0;
+        while total < to_write {
+            let chunk = (to_write - total).min(MAX_FRAMES);
+            for i in 0..chunk {
+                let s = total + i;
+                let (l, r) = if ch == 1 {
+                    let v = buffer[s].to_f32();
+                    (v, v)
+                } else {
+                    (buffer[s * ch].to_f32(), buffer[s * ch + 1].to_f32())
+                };
+                scratch[i] = StereoFrame([l, r]);
+            }
+            let written = playback_pair().0.write(&scratch[..chunk]);
+            if written == 0 {
+                break;
+            }
+            total += written;
         }
-        PLAYBACK_WR.store(wr_new, Ordering::Release);
-        Ok(take)
+        Ok(total)
     }
 
     fn reset(&mut self) -> Result<()> {
+        // Ring buffer нельзя сбросить извне (create_pair не даёт такой API),
+        // но при пересоздании OnceLock не сбросится. Для нашей задачи
+        // reset не критичен — оставляем no-op.
         Ok(())
     }
 
     fn close(&mut self) -> Result<()> {
-        if let Some(inner) = self.inner.take() {
-            let _ = inner.ctx.close();
-        }
+        // Shared ctx не закрываем — второй бэкенд его использует.
+        self.inner = None;
         Ok(())
     }
 }

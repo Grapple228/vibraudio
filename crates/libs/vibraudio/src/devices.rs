@@ -85,6 +85,7 @@ impl<S: Sample> Speakers<S> {
         Ok(())
     }
 
+    /// 1:1 с `run`, только async-методы.
     #[cfg(target_arch = "wasm32")]
     pub async fn run_async<const SIZE: usize>(
         &mut self,
@@ -93,6 +94,7 @@ impl<S: Sample> Speakers<S> {
         #[cfg(target_os = "windows")] _mcss_value: vibraudio_thread::MmcssValue,
     ) -> Result<()> {
         use vibraudio_core::BackendAsync;
+
         if self.running.load(Ordering::SeqCst) {
             return Err(Error::AlreadyRunning);
         }
@@ -106,22 +108,23 @@ impl<S: Sample> Speakers<S> {
 
         let handle = tokio_with_wasm::spawn(async move {
             let mut buffer = [S::ZERO; crate::platform::FRAMES * 2];
-            let max_samples = crate::platform::FRAMES * channels as usize;
+            let max_samples = crate::platform::FRAMES * channels.as_usize();
 
             while running.load(Ordering::SeqCst) {
-                // Дренируем всё, что накопилось
-                loop {
-                    let read = reader.read(&mut buffer[..max_samples]);
-                    if read == 0 {
-                        break;
-                    }
-                    if let Err(e) = backend.write_frames(&buffer[..read], channels) {
+                let read = reader.read(&mut buffer[..max_samples]);
+
+                if read > 0 {
+                    // write_frames_async ждёт (в async-смысле), пока PLAYBACK_BUF
+                    // не примет все фреймы — как snd_pcm_writei в native.
+                    if let Err(e) = backend.write_frames_async(&buffer[..read], channels).await {
                         tracing::error!("❌ Playback error: {e}");
-                        break;
                     }
                 }
-                // setTimeout(0) ≈ 4 мс, но мы уже вычитали всё, что было
-                tokio_with_wasm::time::sleep(Duration::from_millis(1)).await;
+
+                // Аналог sleep(10µs) в native. В web <4 мс всё равно
+                // клампится, поэтому yield_fast — минимально возможная пауза,
+                // которая отдаёт event loop другим таскам.
+                vibraudio_web::yield_fast().await;
             }
         });
 
@@ -216,6 +219,7 @@ impl<S: Sample> Mic<S> {
         Ok(())
     }
 
+    /// 1:1 с `run`, только async-методы.
     #[cfg(target_arch = "wasm32")]
     pub async fn run_async<const SIZE: usize>(
         &mut self,
@@ -238,24 +242,28 @@ impl<S: Sample> Mic<S> {
 
         let handle = tokio_with_wasm::spawn(async move {
             let mut buffer = [S::ZERO; crate::platform::FRAMES * 2];
+
             while running.load(Ordering::SeqCst) {
-                loop {
-                    match backend.read_frames(&mut buffer, channels) {
-                        Ok(0) => break,
-                        Ok(n) => {
-                            let samples = n * channels as usize;
+                // read_frames_async ждёт (в async-смысле), пока CAPTURE_BUF
+                // не наберёт ровно buffer.len()/ch фреймов — как snd_pcm_readi.
+                match backend.read_frames_async(&mut buffer, channels).await {
+                    Ok(frames_read) => {
+                        if frames_read > 0 {
+                            let samples = frames_read * channels as usize;
                             let written = writer.write(&buffer[..samples]);
                             if written < samples {
-                                break;
+                                // ring полон — как native sleep(10µs) и продолжаем
+                                vibraudio_web::yield_fast().await;
+                                continue;
                             }
                         }
-                        Err(e) => {
-                            tracing::error!("❌ Capture error: {e}");
-                            break;
-                        }
+                    }
+                    Err(e) => {
+                        tracing::error!("❌ Capture error: {e}");
                     }
                 }
-                tokio_with_wasm::time::sleep(Duration::from_millis(1)).await;
+
+                vibraudio_web::yield_fast().await;
             }
         });
 

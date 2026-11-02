@@ -17,6 +17,16 @@ pub trait BackendAsync<S: Sample>: Backend<S> {
     async fn close_async(&mut self) -> Result<()> {
         self.close()
     }
+
+    /// Async read. Default = sync. Web backend overrides this to block until full.
+    async fn read_frames_async(&self, buffer: &mut [S], channels: Channels) -> Result<usize> {
+        self.read_frames(buffer, channels)
+    }
+
+    /// Async write. Default = sync. Web backend overrides this to block until all frames accepted.
+    async fn write_frames_async(&mut self, buffer: &[S], channels: Channels) -> Result<usize> {
+        self.write_frames(buffer, channels)
+    }
 }
 
 pub trait Backend<S: Sample>: Sized + Send + 'static {
