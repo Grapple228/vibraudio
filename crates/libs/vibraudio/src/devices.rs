@@ -93,7 +93,6 @@ impl<S: Sample> Speakers<S> {
         #[cfg(target_os = "windows")] _mcss_value: vibraudio_thread::MmcssValue,
     ) -> Result<()> {
         use vibraudio_core::BackendAsync;
-
         if self.running.load(Ordering::SeqCst) {
             return Err(Error::AlreadyRunning);
         }
@@ -110,15 +109,19 @@ impl<S: Sample> Speakers<S> {
             let max_samples = crate::platform::FRAMES * channels as usize;
 
             while running.load(Ordering::SeqCst) {
-                let read = reader.read(&mut buffer[..max_samples]);
-
-                if read > 0 {
+                // Дренируем всё, что накопилось
+                loop {
+                    let read = reader.read(&mut buffer[..max_samples]);
+                    if read == 0 {
+                        break;
+                    }
                     if let Err(e) = backend.write_frames(&buffer[..read], channels) {
                         tracing::error!("❌ Playback error: {e}");
+                        break;
                     }
                 }
-
-                tokio_with_wasm::time::sleep(Duration::from_micros(10)).await;
+                // setTimeout(0) ≈ 4 мс, но мы уже вычитали всё, что было
+                tokio_with_wasm::time::sleep(Duration::from_millis(1)).await;
             }
         });
 
@@ -235,24 +238,24 @@ impl<S: Sample> Mic<S> {
 
         let handle = tokio_with_wasm::spawn(async move {
             let mut buffer = [S::ZERO; crate::platform::FRAMES * 2];
-
             while running.load(Ordering::SeqCst) {
-                match backend.read_frames(&mut buffer, channels) {
-                    Ok(frames_read) => {
-                        if frames_read > 0 {
-                            let samples = frames_read * channels as usize;
+                loop {
+                    match backend.read_frames(&mut buffer, channels) {
+                        Ok(0) => break,
+                        Ok(n) => {
+                            let samples = n * channels as usize;
                             let written = writer.write(&buffer[..samples]);
                             if written < samples {
-                                tokio_with_wasm::time::sleep(Duration::from_micros(10)).await;
+                                break;
                             }
                         }
-                    }
-                    Err(e) => {
-                        tracing::error!("❌ Capture error: {e}");
+                        Err(e) => {
+                            tracing::error!("❌ Capture error: {e}");
+                            break;
+                        }
                     }
                 }
-
-                tokio_with_wasm::time::sleep(Duration::from_micros(10)).await;
+                tokio_with_wasm::time::sleep(Duration::from_millis(1)).await;
             }
         });
 
