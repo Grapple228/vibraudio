@@ -1,10 +1,10 @@
 #[test]
-#[cfg(target_os = "linux")]
+#[cfg(all(target_os = "linux", feature = "mp3"))]
 fn ffi_links_correctly() {
     use std::ffi::CStr;
     use std::mem::MaybeUninit;
 
-    use vibraudio_mp3::ffi::{mp3dec_init, Mp3Dec};
+    use vibraudio_mp3::ffi::{Mp3Dec, mp3dec_init};
 
     // Verify minimp3 links: initialize a decoder on the stack
     let mut dec = unsafe { MaybeUninit::<Mp3Dec>::zeroed().assume_init() };

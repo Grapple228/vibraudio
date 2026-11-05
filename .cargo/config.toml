@@ -6,5 +6,5 @@
 # Scope down tracing, to filter out external lib tracing.
 RUST_LOG = "debug"
 
-[build]
-target = "wasm32-unknown-unknown"
+# [build]
+# target = "wasm32-unknown-unknown"

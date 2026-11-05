@@ -2,9 +2,7 @@ use crate::platform::DefaultBackend;
 use std::marker::PhantomData;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::Duration;
 use vibraudio_core::AudioConfig;
-use vibraudio_core::Backend;
 use vibraudio_core::StreamDirection;
 use vibraudio_core::sample::Sample;
 use vibraudio_core::{Error, Result};
@@ -77,6 +75,8 @@ impl<S: Sample> Speakers<S> {
         priority: Priority,
         #[cfg(target_os = "windows")] mcss_value: vibraudio_thread::MmcssValue,
     ) -> Result<()> {
+        use vibraudio_core::Backend;
+
         if self.running.load(Ordering::SeqCst) {
             return Err(Error::AlreadyRunning);
         }
@@ -213,6 +213,8 @@ impl<S: Sample> Mic<S> {
         priority: Priority,
         #[cfg(target_os = "windows")] mcss_value: vibraudio_thread::MmcssValue,
     ) -> Result<()> {
+        use vibraudio_core::Backend;
+
         if self.running.load(Ordering::SeqCst) {
             return Err(Error::AlreadyRunning);
         }
@@ -239,6 +241,8 @@ impl<S: Sample> Mic<S> {
                             let samples = frames_read * channels as usize;
                             let written = writer.write(&buffer[..samples]);
                             if written < samples {
+                                use std::time::Duration;
+
                                 thread::sleep(Duration::from_micros(10));
                             }
                         }

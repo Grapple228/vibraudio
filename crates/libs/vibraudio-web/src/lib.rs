@@ -1,6 +1,9 @@
+#[cfg(target_arch = "wasm32")]
 mod backend;
 
+#[cfg(target_arch = "wasm32")]
 pub use backend::FRAMES;
+#[cfg(target_arch = "wasm32")]
 pub use backend::WebBackend;
 
 #[cfg(target_arch = "wasm32")]

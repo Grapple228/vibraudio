@@ -1,8 +1,6 @@
 #[cfg(not(windows))]
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     panic!("this example only works on windows target");
-
-    Ok(())
 }
 
 #[cfg(windows)]

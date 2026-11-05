@@ -474,6 +474,7 @@ dependencies = [
  "vibraudio-thread",
  "vibraudio-wasapi",
  "vibraudio-web",
+ "wasm-bindgen",
 ]
 
 [[package]]
@@ -554,9 +555,11 @@ dependencies = [
  "anyhow",
  "derive_more",
  "js-sys",
+ "tokio_with_wasm",
  "tracing",
  "tracing-subscriber",
  "vibraudio-core",
+ "vibraudio-ringbuffer",
  "wasm-bindgen",
  "web-sys",
 ]
