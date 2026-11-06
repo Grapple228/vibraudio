@@ -107,7 +107,7 @@ impl<S: Sample> Speakers<S> {
                 }
 
                 #[cfg(target_os = "windows")]
-                thread::sleep(Duration::from_micros(10));
+                thread::sleep(std::time::Duration::from_micros(10));
             }
         });
 
@@ -253,7 +253,7 @@ impl<S: Sample> Mic<S> {
                 }
 
                 #[cfg(target_os = "windows")]
-                thread::sleep(Duration::from_micros(10));
+                thread::sleep(std::time::Duration::from_micros(10));
             }
         });
 
